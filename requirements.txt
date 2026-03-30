@@ -1,0 +1,36 @@
+# HTTP 클라이언트 (LS증권 REST API 직접 호출)
+requests>=2.31.0
+
+# 데이터 처리
+pandas>=2.0.0
+numpy>=1.26.0
+
+# 기술적 지표
+ta>=0.11.0
+
+# 과거 데이터 (백테스팅)
+yfinance>=0.2.40
+
+# 스케줄러
+APScheduler>=3.10.0
+
+# 텔레그램 알림
+python-telegram-bot>=20.0
+
+# 설정
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+
+# 웹 대시보드
+flask>=3.0.0
+
+# 백테스팅 시각화
+matplotlib>=3.8.0
+
+# AI 뉴스 분석 (둘 중 하나만 있어도 동작)
+anthropic>=0.40.0       # Claude 사용 시
+google-genai>=1.0.0     # Gemini 사용 시 (무료 티어 있음)
+
+# 뉴스 크롤링
+beautifulsoup4>=4.12.0
+lxml>=5.0.0

@@ -1,0 +1,53 @@
+swing:
+  enabled: true
+  watchlist:
+  - 005930
+  - '000660'
+  - '035420'
+  capital: 500000
+  order_amount: 500000
+  max_positions: 5
+  stop_loss_pct: -5.0
+  take_profit_pct: 10.0
+  rsi:
+    period: 14
+    oversold: 30
+    overbought: 70
+    candle_interval: D
+daytrading:
+  enabled: true
+  scan_top_n: 20
+  capital: 300000
+  order_amount: 200000
+  take_profit_pct: 2.0
+  stop_loss_pct: -1.5
+  force_close_time: '15:20'
+  max_positions: 3
+  rsi_period: 7
+  rsi_oversold: 35
+  rsi_overbought: 65
+  candle_interval: '5'
+scheduler:
+  daytrading_prep: 08:30
+  market_open: 09:01
+  swing_interval_minutes: 30
+  daytrading_force_close: '15:20'
+  daily_report: '15:35'
+news_analysis:
+  enabled: true
+  provider: auto
+  model: ''
+  lookback_days: 3
+  block_buy_on_negative: true
+  include_dart: true
+backtest:
+  start_date: '2023-01-01'
+  end_date: '2024-12-31'
+  initial_capital: 10000000
+  daytrading:
+    rsi_period: 7
+    rsi_oversold: 35
+    rsi_overbought: 65
+    candle_interval: '5'
+    take_profit_pct: 2.0
+    stop_loss_pct: -1.5
