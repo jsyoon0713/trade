@@ -29,10 +29,13 @@ with open(_log_cfg) as f:
 from src.autotrader.web.app import create_app
 
 if __name__ == "__main__":
+    import os
+    port = int(os.getenv("WEB_PORT", 5001))
+
     app = create_app()
     print("=" * 45)
     print("  KRX 자동매매 대시보드 시작")
-    print("  브라우저에서 http://localhost:5001 접속")
+    print(f"  http://localhost:{port}")
     print("  종료: Ctrl+C")
     print("=" * 45)
-    app.run(host="0.0.0.0", port=5001, debug=False, use_reloader=False)
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
