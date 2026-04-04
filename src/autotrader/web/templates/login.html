@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KRX 자동매매 - 로그인</title>
+<style>
+  :root { --bg:#0d1117; --bg2:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e; --green:#3fb950; --red:#f85149; --blue:#58a6ff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  .card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:40px 36px; width:100%; max-width:360px; }
+  h1 { font-size:20px; font-weight:700; margin-bottom:6px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:28px; }
+  label { display:block; font-size:12px; color:var(--muted); font-weight:600; margin-bottom:5px; }
+  input { width:100%; background:#21262d; border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:7px; font-size:14px; margin-bottom:14px; }
+  input:focus { outline:none; border-color:var(--blue); }
+  button { width:100%; background:var(--green); color:#000; border:none; padding:11px; border-radius:7px; font-size:14px; font-weight:700; cursor:pointer; margin-top:4px; }
+  button:hover { opacity:.85; }
+  .error { background:#2d1b1b; border:1px solid var(--red); color:var(--red); border-radius:6px; padding:10px 12px; font-size:12px; margin-bottom:16px; }
+  .no-auth { color:var(--muted); font-size:12px; text-align:center; margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>KRX 자동매매</h1>
+  <div class="sub">대시보드에 로그인하세요</div>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {% if auth_enabled %}
+  <form method="POST">
+    <label>아이디</label>
+    <input type="text" name="username" autocomplete="username" autofocus required>
+    <label>비밀번호</label>
+    <input type="password" name="password" autocomplete="current-password" required>
+    <button type="submit">로그인</button>
+  </form>
+  {% else %}
+  <div class="no-auth">
+    인증이 설정되어 있지 않습니다.<br>
+    <a href="/" style="color:var(--blue)">대시보드로 이동</a>
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

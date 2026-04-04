@@ -101,6 +101,20 @@
   .dot.off  { background: var(--muted); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
+  /* 투자방식 추천 카드 */
+  .mode-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:8px; }
+  .mode-btn { padding:6px 4px; border-radius:6px; border:1px solid var(--border); background:var(--bg3); color:var(--muted); cursor:pointer; font-size:11px; font-weight:600; text-align:center; transition:all .15s; }
+  .mode-btn:hover { border-color:var(--blue); color:var(--text); }
+  .mode-btn.active { background:#1a2d3d; border-color:var(--blue); color:var(--blue); }
+  .mode-btn.HOLD.active { background:#2d1b1b; border-color:var(--red); color:var(--red); }
+  .mode-btn.FOCUSED.active { background:#2d1a0a; border-color:#f0883e; color:#f0883e; }
+  .mode-alloc { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+  .mode-alloc-row { display:flex; justify-content:space-between; font-size:11px; padding:3px 6px; background:var(--bg3); border-radius:4px; }
+  .macro-label { display:inline-block; padding:1px 7px; border-radius:8px; font-size:11px; font-weight:700; }
+  .macro-label.very_bullish,.macro-label.bullish { background:#1a3d2a; color:#3fb950; }
+  .macro-label.neutral { background:#21262d; color:#8b949e; }
+  .macro-label.bearish,.macro-label.very_bearish { background:#2d1b1b; color:#f85149; }
+
   /* HTS 관심종목 테이블 */
   .hts-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .hts-table th { color: var(--muted); font-weight: 600; text-align: right; padding: 6px 8px; border-bottom: 2px solid var(--border); background: var(--bg3); }
@@ -118,6 +132,53 @@
   /* 알림 토스트 */
   #toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
   #toast.show { opacity: 1; }
+
+  /* 설정 모달 */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:1000; overflow-y:auto; }
+  .modal-overlay.open { display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; }
+  .modal { background:var(--bg2); border:1px solid var(--border); border-radius:12px; width:100%; max-width:700px; }
+  .modal-header { display:flex; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
+  .modal-header h2 { font-size:15px; font-weight:700; }
+  .modal-close { margin-left:auto; background:none; border:none; color:var(--muted); cursor:pointer; font-size:20px; line-height:1; padding:4px 8px; }
+  .modal-close:hover { color:var(--text); }
+  .modal-tabs { display:flex; gap:2px; padding:12px 20px 0; background:var(--bg2); }
+  .modal-tab { padding:6px 14px; border-radius:6px 6px 0 0; border:none; background:var(--bg3); color:var(--muted); cursor:pointer; font-size:12px; font-weight:600; border-bottom:2px solid transparent; }
+  .modal-tab.active { background:var(--bg2); color:var(--blue); border-bottom:2px solid var(--blue); }
+  .modal-body { padding:20px; }
+  .modal-section { display:none; }
+  .modal-section.active { display:block; }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-grid.cols3 { grid-template-columns:1fr 1fr 1fr; }
+  .form-group { display:flex; flex-direction:column; gap:4px; }
+  .form-group.full { grid-column:1/-1; }
+  .form-group label { font-size:11px; color:var(--muted); font-weight:600; }
+  .form-input { background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:13px; width:100%; }
+  .form-input:focus { outline:none; border-color:var(--blue); }
+  .form-select { background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:13px; width:100%; }
+  .form-toggle { display:flex; align-items:center; gap:8px; padding:8px 0; }
+  .toggle-switch { position:relative; width:36px; height:20px; }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-slider { position:absolute; cursor:pointer; inset:0; background:var(--bg3); border:1px solid var(--border); border-radius:20px; transition:.2s; }
+  .toggle-slider:before { content:''; position:absolute; width:14px; height:14px; left:2px; bottom:2px; background:var(--muted); border-radius:50%; transition:.2s; }
+  input:checked + .toggle-slider { background:#1a3d2a; border-color:var(--green); }
+  input:checked + .toggle-slider:before { background:var(--green); transform:translateX(16px); }
+  .form-section-title { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:16px 0 8px; border-top:1px solid var(--border); padding-top:12px; }
+  .form-section-title:first-child { margin-top:0; border-top:none; padding-top:0; }
+  .modal-footer { padding:16px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+  .btn-outline { background:none; border:1px solid var(--border); color:var(--muted); }
+  .restart-note { font-size:11px; color:var(--yellow); margin-right:auto; display:none; }
+  .restart-note.show { display:block; }
+
+  /* 매크로 점수 뱃지 */
+  .macro-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+  .macro-badge.very_bullish { background:#1a3d2a; color:#3fb950; border:1px solid #3fb950; }
+  .macro-badge.bullish      { background:#1a3020; color:#56d364; border:1px solid #56d364; }
+  .macro-badge.neutral      { background:#21262d; color:#8b949e; border:1px solid #8b949e; }
+  .macro-badge.bearish      { background:#2d1f1f; color:#f0883e; border:1px solid #f0883e; }
+  .macro-badge.very_bearish { background:#2d1b1b; color:#f85149; border:1px solid #f85149; }
+  .macro-idx { display:flex; justify-content:space-between; font-size:11px; padding:2px 0; }
+  .macro-idx .idx-name { color:var(--muted); }
+  .macro-idx .idx-val  { font-variant-numeric:tabular-nums; font-weight:600; }
 </style>
 </head>
 <body>
@@ -127,9 +188,271 @@
   <span id="status-badge" class="badge off">정지</span>
   <span id="time"></span>
   <div class="ml-auto" style="display:flex;gap:8px;align-items:center">
+    <button class="btn btn-sm" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)" onclick="openSettings()">⚙ 설정</button>
     <button id="btn-toggle" class="btn btn-start" onclick="toggleBot()">시작</button>
   </div>
 </header>
+
+<!-- 설정 모달 -->
+<div id="settings-modal" class="modal-overlay" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>전체 설정</h2>
+      <button class="modal-close" onclick="closeSettings()">×</button>
+    </div>
+    <div class="modal-tabs">
+      <button class="modal-tab active" onclick="switchModalTab('swing')">스윙</button>
+      <button class="modal-tab" onclick="switchModalTab('daytrading')">단타</button>
+      <button class="modal-tab" onclick="switchModalTab('news')">뉴스 분석</button>
+      <button class="modal-tab" onclick="switchModalTab('macro')">매크로</button>
+      <button class="modal-tab" onclick="switchModalTab('scheduler')">스케줄러</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- 스윙 설정 -->
+      <div id="cfg-swing" class="modal-section active">
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="sw-enabled"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px;font-weight:600">스윙 트레이딩 활성화</span>
+        </div>
+        <div class="form-section-title">자금 설정</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>시드머니 (원)</label>
+            <input class="form-input" id="sw-capital" type="number" step="100000" min="0">
+          </div>
+          <div class="form-group">
+            <label>1회 매수금액 (원)</label>
+            <input class="form-input" id="sw-order-amount" type="number" step="50000" min="0">
+          </div>
+          <div class="form-group">
+            <label>최대 포지션 수</label>
+            <input class="form-input" id="sw-max-pos" type="number" min="1" max="20">
+          </div>
+        </div>
+        <div class="form-section-title">손익 설정</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>손절 (%)</label>
+            <input class="form-input" id="sw-sl" type="number" step="0.5">
+          </div>
+          <div class="form-group">
+            <label>익절 (%)</label>
+            <input class="form-input" id="sw-tp" type="number" step="0.5" min="0">
+          </div>
+        </div>
+        <div class="form-section-title">RSI 설정</div>
+        <div class="form-grid cols3">
+          <div class="form-group">
+            <label>RSI 기간</label>
+            <input class="form-input" id="sw-rsi-period" type="number" min="5" max="30">
+          </div>
+          <div class="form-group">
+            <label>과매도 기준</label>
+            <input class="form-input" id="sw-rsi-oversold" type="number" min="10" max="50">
+          </div>
+          <div class="form-group">
+            <label>과매수 기준</label>
+            <input class="form-input" id="sw-rsi-overbought" type="number" min="50" max="90">
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="form-group">
+            <label>캔들 간격</label>
+            <select class="form-select" id="sw-candle">
+              <option value="D">일봉 (D)</option>
+              <option value="W">주봉 (W)</option>
+              <option value="60">60분봉</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-section-title">관심종목</div>
+        <div class="form-group full">
+          <label>종목코드 (쉼표로 구분, 예: 005930,000660)</label>
+          <input class="form-input" id="sw-watchlist" type="text" placeholder="005930,000660,035420">
+        </div>
+      </div>
+
+      <!-- 단타 설정 -->
+      <div id="cfg-daytrading" class="modal-section">
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="dt-enabled"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px;font-weight:600">단타 트레이딩 활성화</span>
+        </div>
+        <div class="form-section-title">자금 설정</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>시드머니 (원)</label>
+            <input class="form-input" id="dt-capital" type="number" step="100000" min="0">
+          </div>
+          <div class="form-group">
+            <label>1회 매수금액 (원)</label>
+            <input class="form-input" id="dt-order-amount" type="number" step="50000" min="0">
+          </div>
+          <div class="form-group">
+            <label>최대 포지션 수</label>
+            <input class="form-input" id="dt-max-pos" type="number" min="1" max="10">
+          </div>
+          <div class="form-group">
+            <label>스캔 종목 수</label>
+            <input class="form-input" id="dt-scan-n" type="number" min="5" max="100">
+          </div>
+        </div>
+        <div class="form-section-title">손익 / 목표수익률</div>
+        <div class="form-grid cols3">
+          <div class="form-group">
+            <label>손절 (%)</label>
+            <input class="form-input" id="dt-sl" type="number" step="0.5">
+          </div>
+          <div class="form-group">
+            <label>익절 (%)</label>
+            <input class="form-input" id="dt-tp" type="number" step="0.5" min="0">
+          </div>
+          <div class="form-group">
+            <label>일일 목표수익률 (%, 0=비활성)</label>
+            <input class="form-input" id="dt-daily-target" type="number" step="0.1" min="0" max="10">
+          </div>
+        </div>
+        <div class="form-section-title">RSI 설정</div>
+        <div class="form-grid cols3">
+          <div class="form-group">
+            <label>RSI 기간</label>
+            <input class="form-input" id="dt-rsi-period" type="number" min="3" max="20">
+          </div>
+          <div class="form-group">
+            <label>과매도 기준</label>
+            <input class="form-input" id="dt-rsi-oversold" type="number" min="10" max="50">
+          </div>
+          <div class="form-group">
+            <label>과매수 기준</label>
+            <input class="form-input" id="dt-rsi-overbought" type="number" min="50" max="90">
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="form-group">
+            <label>캔들 간격 (분)</label>
+            <select class="form-select" id="dt-candle">
+              <option value="1">1분봉</option>
+              <option value="3">3분봉</option>
+              <option value="5">5분봉</option>
+              <option value="10">10분봉</option>
+              <option value="15">15분봉</option>
+              <option value="30">30분봉</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>강제청산 시간 (HH:MM)</label>
+            <input class="form-input" id="dt-force-close" type="text" placeholder="15:20">
+          </div>
+        </div>
+      </div>
+
+      <!-- 뉴스 분석 설정 -->
+      <div id="cfg-news" class="modal-section">
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="news-enabled"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px;font-weight:600">뉴스 분석 활성화</span>
+        </div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="form-group">
+            <label>AI 제공사</label>
+            <select class="form-select" id="news-provider">
+              <option value="auto">자동 선택 (auto)</option>
+              <option value="claude">Claude</option>
+              <option value="gemini">Gemini</option>
+              <option value="none">사용 안함</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>모델명 (비워두면 기본값)</label>
+            <input class="form-input" id="news-model" type="text" placeholder="claude-sonnet-4-5">
+          </div>
+          <div class="form-group">
+            <label>뉴스 조회 기간 (일)</label>
+            <input class="form-input" id="news-lookback" type="number" min="1" max="14">
+          </div>
+        </div>
+        <div class="form-section-title">옵션</div>
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="news-block-neg"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px">부정 뉴스 시 매수 차단</span>
+        </div>
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="news-dart"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px">DART 공시 포함</span>
+        </div>
+      </div>
+
+      <!-- 매크로 분석 설정 -->
+      <div id="cfg-macro" class="modal-section">
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="mac-enabled"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px;font-weight:600">매크로 분석 활성화</span>
+        </div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="form-group">
+            <label>AI 제공사</label>
+            <select class="form-select" id="mac-provider">
+              <option value="auto">자동 선택 (auto)</option>
+              <option value="claude">Claude</option>
+              <option value="gemini">Gemini</option>
+              <option value="none">사용 안함</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>모델명 (비워두면 기본값)</label>
+            <input class="form-input" id="mac-model" type="text">
+          </div>
+          <div class="form-group">
+            <label>업데이트 주기 (분)</label>
+            <input class="form-input" id="mac-interval" type="number" min="10" max="240">
+          </div>
+          <div class="form-group">
+            <label>장 전 분석 시간 (HH:MM)</label>
+            <input class="form-input" id="mac-pretime" type="text" placeholder="08:20">
+          </div>
+        </div>
+        <div class="form-section-title">적용 범위</div>
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="mac-apply-sw"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px">스윙에 적용</span>
+        </div>
+        <div class="form-toggle">
+          <label class="toggle-switch"><input type="checkbox" id="mac-apply-dt"><span class="toggle-slider"></span></label>
+          <span style="font-size:13px">단타에 적용</span>
+        </div>
+      </div>
+
+      <!-- 스케줄러 설정 -->
+      <div id="cfg-scheduler" class="modal-section">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>단타 준비 시간 (HH:MM)</label>
+            <input class="form-input" id="sc-prep" type="text" placeholder="08:30">
+          </div>
+          <div class="form-group">
+            <label>단타 강제청산 시간 (HH:MM)</label>
+            <input class="form-input" id="sc-force" type="text" placeholder="15:20">
+          </div>
+          <div class="form-group">
+            <label>스윙 체크 주기 (분)</label>
+            <input class="form-input" id="sc-sw-interval" type="number" min="5" max="120">
+          </div>
+          <div class="form-group">
+            <label>일일 리포트 시간 (HH:MM)</label>
+            <input class="form-input" id="sc-report" type="text" placeholder="15:35">
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <span id="cfg-restart-note" class="restart-note">⚠ 스케줄러/전략 변경은 봇 재시작 후 적용됩니다</span>
+      <button class="btn btn-sm btn-outline" onclick="closeSettings()">취소</button>
+      <button class="btn btn-sm btn-start" onclick="saveSettings()">저장</button>
+    </div>
+  </div>
+</div>
 
 <div class="layout">
   <!-- 왼쪽: 포트폴리오 요약 -->
@@ -184,6 +507,39 @@
       </div>
     </div>
 
+    <div class="card" id="recommend-card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>투자 방식 추천</span>
+        <span id="rec-macro-badge" class="macro-label neutral">-</span>
+      </div>
+      <div id="rec-empty" style="color:var(--muted);font-size:12px">08:30 아침 준비 후 표시됩니다</div>
+      <div id="rec-content" style="display:none">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">
+          추천: <span id="rec-mode-label" style="color:var(--blue)">-</span>
+        </div>
+        <div id="rec-reasoning" style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5"></div>
+        <div class="mode-grid">
+          <button class="mode-btn FOCUSED" onclick="setMode('FOCUSED')" title="최고점 종목 1개 80%">집중투자</button>
+          <button class="mode-btn WEIGHTED" onclick="setMode('WEIGHTED')" title="점수 비례 배분">비중분산</button>
+          <button class="mode-btn BALANCED" onclick="setMode('BALANCED')" title="균등 배분">균형분산</button>
+          <button class="mode-btn DEFENSIVE" onclick="setMode('DEFENSIVE')" title="소액 진입">소극적</button>
+          <button class="mode-btn HOLD" onclick="setMode('HOLD')" title="신규 매수 없음">관망</button>
+        </div>
+        <div class="mode-alloc" id="rec-alloc"></div>
+      </div>
+    </div>
+
+    <div class="card" id="macro-card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>매크로 시장 분석</span>
+        <span id="macro-badge" class="macro-badge neutral">neutral</span>
+      </div>
+      <div style="margin-bottom:8px;font-size:11px;color:var(--muted)" id="macro-updated">-</div>
+      <div id="macro-factors" style="margin-bottom:6px;font-size:12px;color:var(--text)"></div>
+      <div id="macro-reasoning" style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px"></div>
+      <div id="macro-indices" style="border-top:1px solid var(--border);padding-top:8px"></div>
+    </div>
+
     <div class="card">
       <div class="card-title">자금 배분</div>
       <div style="margin-bottom:10px">
@@ -227,14 +583,17 @@
     </div>
 
     <div class="card">
-      <div class="card-title">설정</div>
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>현재 설정</span>
+        <button class="btn btn-sm" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);font-size:11px" onclick="openSettings()">편집</button>
+      </div>
       <div class="cfg-grid">
         <div class="cfg-item"><label>스윙 1회 매수</label><span id="cfg-sw-ord">-</span></div>
         <div class="cfg-item"><label>단타 1회 매수</label><span id="cfg-dt-ord">-</span></div>
-        <div class="cfg-item"><label>스윙 손절</label><span id="cfg-sw-sl">-</span></div>
-        <div class="cfg-item"><label>단타 손절</label><span id="cfg-dt-sl">-</span></div>
-        <div class="cfg-item"><label>스윙 익절</label><span id="cfg-sw-tp">-</span></div>
-        <div class="cfg-item"><label>단타 익절</label><span id="cfg-dt-tp">-</span></div>
+        <div class="cfg-item"><label>스윙 손절/익절</label><span id="cfg-sw-sl">-</span></div>
+        <div class="cfg-item"><label>단타 손절/익절</label><span id="cfg-dt-sl">-</span></div>
+        <div class="cfg-item"><label>스윙 RSI 기간</label><span id="cfg-sw-rsi">-</span></div>
+        <div class="cfg-item"><label>일일 목표수익률</label><span id="cfg-dt-target">-</span></div>
       </div>
     </div>
 
@@ -378,15 +737,13 @@ async function fetchStatus() {
       ).join('');
     }
 
-    // 설정
+    // 설정 요약 표시
     if (d.config) {
       const sw = d.config.swing, dt = d.config.daytrading;
       document.getElementById('cfg-sw-ord').textContent = fmtW(sw.order_amount);
       document.getElementById('cfg-dt-ord').textContent = fmtW(dt.order_amount);
-      document.getElementById('cfg-sw-sl').textContent  = sw.stop_loss + '%';
-      document.getElementById('cfg-dt-sl').textContent  = dt.stop_loss + '%';
-      document.getElementById('cfg-sw-tp').textContent  = '+' + sw.take_profit + '%';
-      document.getElementById('cfg-dt-tp').textContent  = '+' + dt.take_profit + '%';
+      document.getElementById('cfg-sw-sl').textContent  = sw.stop_loss + '% / +' + sw.take_profit + '%';
+      document.getElementById('cfg-dt-sl').textContent  = dt.stop_loss + '% / +' + dt.take_profit + '%';
     }
   } catch(e) {}
 }
@@ -607,14 +964,278 @@ async function fetchWatchlist() {
   } catch(e) {}
 }
 
+// ── 매크로 분석 ──
+const SCORE_LABEL = {
+  very_bullish: '매우강세', bullish: '강세', neutral: '중립',
+  bearish: '약세', very_bearish: '매우약세',
+};
+const US_LABEL = { up: '▲상승', down: '▼하락', flat: '→보합' };
+
+async function fetchMacro() {
+  try {
+    const res = await fetch('/api/macro');
+    const d = await res.json();
+
+    const badge = document.getElementById('macro-badge');
+    badge.textContent = SCORE_LABEL[d.score] || d.score;
+    badge.className = 'macro-badge ' + d.score;
+
+    document.getElementById('macro-updated').textContent =
+      d.available ? `${d.updated_at}  |  ${d.provider}  |  확신도 ${Math.round(d.confidence * 100)}%` : '분석 대기 중';
+
+    const factors = document.getElementById('macro-factors');
+    if (d.key_factors && d.key_factors.length) {
+      factors.innerHTML = d.key_factors.map(f => `<span style="margin-right:6px">· ${escHtml(f)}</span>`).join('');
+    } else {
+      factors.innerHTML = '';
+    }
+
+    document.getElementById('macro-reasoning').textContent = d.reasoning || '';
+
+    const idxEl = document.getElementById('macro-indices');
+    let idxHtml = '';
+    if (d.indices && d.indices.length) {
+      for (const idx of d.indices) {
+        const sign = idx.change_pct >= 0 ? '+' : '';
+        const cls  = idx.change_pct > 0 ? 'up' : idx.change_pct < 0 ? 'down' : 'flat';
+        idxHtml += `<div class="macro-idx"><span class="idx-name">${idx.name}</span><span class="idx-val ${cls}">${sign}${idx.change_pct.toFixed(2)}%</span></div>`;
+      }
+      if (d.usd_krw) {
+        const sign = d.usd_krw_change_pct >= 0 ? '+' : '';
+        const cls  = d.usd_krw_change_pct > 0 ? 'up' : d.usd_krw_change_pct < 0 ? 'down' : 'flat';
+        idxHtml += `<div class="macro-idx"><span class="idx-name">USD/KRW</span><span class="idx-val ${cls}">${d.usd_krw.toLocaleString('ko-KR')} (${sign}${d.usd_krw_change_pct.toFixed(2)}%)</span></div>`;
+      }
+    }
+    idxEl.innerHTML = idxHtml;
+  } catch(e) {}
+}
+
+// ── 투자 방식 추천 ──
+const MODE_LABELS = {FOCUSED:'집중투자',WEIGHTED:'비중분산',BALANCED:'균형분산',DEFENSIVE:'소극적',HOLD:'관망'};
+const MACRO_KR = {very_bullish:'매우강세',bullish:'강세',neutral:'중립',bearish:'약세',very_bearish:'매우약세'};
+
+async function fetchRecommendation() {
+  try {
+    const res = await fetch('/api/daytrading/recommendation');
+    const d = await res.json();
+    const empty = document.getElementById('rec-empty');
+    const content = document.getElementById('rec-content');
+    if (!d.available) { empty.style.display=''; content.style.display='none'; return; }
+
+    empty.style.display = 'none';
+    content.style.display = '';
+
+    // 매크로 뱃지
+    const badge = document.getElementById('rec-macro-badge');
+    badge.textContent = MACRO_KR[d.macro_score] || d.macro_score;
+    badge.className = 'macro-label ' + d.macro_score;
+
+    // 추천 모드
+    document.getElementById('rec-mode-label').textContent = d.mode_label;
+    document.getElementById('rec-reasoning').textContent = d.reasoning;
+
+    // 버튼 활성화
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.classList.contains(d.mode));
+    });
+
+    // 자금 배분
+    const allocEl = document.getElementById('rec-alloc');
+    if (d.allocations && d.allocations.length) {
+      allocEl.innerHTML = d.allocations.map(a =>
+        `<div class="mode-alloc-row">
+          <span style="font-weight:600">${a.symbol} <span style="color:var(--muted);font-weight:400">${a.company_name}</span></span>
+          <span><span style="color:var(--blue)">${a.ratio}%</span> · ${fmt(a.amount)}원</span>
+        </div>`
+      ).join('');
+    } else {
+      allocEl.innerHTML = d.mode === 'HOLD' ? '<div style="color:var(--muted);font-size:11px;text-align:center;padding:4px">신규 매수 없음</div>' : '';
+    }
+  } catch(e) {}
+}
+
+async function setMode(mode) {
+  const res = await fetch('/api/daytrading/set-mode', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({mode}),
+  });
+  const d = await res.json();
+  showToast(d.msg);
+  if (d.ok) fetchRecommendation();
+}
+
+// ── 설정 모달 ──
+const MODAL_TABS = ['swing','daytrading','news','macro','scheduler'];
+
+function openSettings() {
+  fetchSettingsAll().then(() => {
+    document.getElementById('settings-modal').classList.add('open');
+  });
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+function switchModalTab(name) {
+  MODAL_TABS.forEach(t => {
+    document.getElementById('cfg-' + t).classList.toggle('active', t === name);
+  });
+  document.querySelectorAll('.modal-tab').forEach((el, i) => {
+    el.classList.toggle('active', MODAL_TABS[i] === name);
+  });
+}
+
+async function fetchSettingsAll() {
+  try {
+    const res = await fetch('/api/config/all');
+    const d = await res.json();
+
+    const sw = d.swing, dt = d.daytrading, news = d.news_analysis, mac = d.macro_analysis, sc = d.scheduler;
+
+    // 스윙
+    document.getElementById('sw-enabled').checked     = sw.enabled;
+    document.getElementById('sw-capital').value       = sw.capital;
+    document.getElementById('sw-order-amount').value  = sw.order_amount;
+    document.getElementById('sw-max-pos').value       = sw.max_positions;
+    document.getElementById('sw-sl').value            = sw.stop_loss_pct;
+    document.getElementById('sw-tp').value            = sw.take_profit_pct;
+    document.getElementById('sw-rsi-period').value    = sw.rsi_period;
+    document.getElementById('sw-rsi-oversold').value  = sw.rsi_oversold;
+    document.getElementById('sw-rsi-overbought').value= sw.rsi_overbought;
+    document.getElementById('sw-candle').value        = sw.candle_interval;
+    document.getElementById('sw-watchlist').value     = sw.watchlist;
+
+    // 설정 요약 카드 업데이트
+    document.getElementById('cfg-sw-rsi').textContent = `기간 ${sw.rsi_period}`;
+    document.getElementById('cfg-dt-target').textContent = dt.daily_target_pct > 0 ? dt.daily_target_pct + '%' : '비활성';
+
+    // 단타
+    document.getElementById('dt-enabled').checked       = dt.enabled;
+    document.getElementById('dt-capital').value         = dt.capital;
+    document.getElementById('dt-order-amount').value    = dt.order_amount;
+    document.getElementById('dt-max-pos').value         = dt.max_positions;
+    document.getElementById('dt-sl').value              = dt.stop_loss_pct;
+    document.getElementById('dt-tp').value              = dt.take_profit_pct;
+    document.getElementById('dt-daily-target').value    = dt.daily_target_pct;
+    document.getElementById('dt-rsi-period').value      = dt.rsi_period;
+    document.getElementById('dt-rsi-oversold').value    = dt.rsi_oversold;
+    document.getElementById('dt-rsi-overbought').value  = dt.rsi_overbought;
+    document.getElementById('dt-candle').value          = dt.candle_interval;
+    document.getElementById('dt-force-close').value     = dt.force_close_time;
+    document.getElementById('dt-scan-n').value          = dt.scan_top_n;
+
+    // 뉴스
+    document.getElementById('news-enabled').checked  = news.enabled;
+    document.getElementById('news-provider').value   = news.provider;
+    document.getElementById('news-model').value      = news.model;
+    document.getElementById('news-lookback').value   = news.lookback_days;
+    document.getElementById('news-block-neg').checked= news.block_buy_on_negative;
+    document.getElementById('news-dart').checked     = news.include_dart;
+
+    // 매크로
+    document.getElementById('mac-enabled').checked  = mac.enabled;
+    document.getElementById('mac-provider').value   = mac.provider;
+    document.getElementById('mac-model').value      = mac.model;
+    document.getElementById('mac-interval').value   = mac.update_interval_minutes;
+    document.getElementById('mac-pretime').value    = mac.pre_market_time;
+    document.getElementById('mac-apply-sw').checked = mac.apply_to_swing;
+    document.getElementById('mac-apply-dt').checked = mac.apply_to_day;
+
+    // 스케줄러
+    document.getElementById('sc-prep').value        = sc.daytrading_prep;
+    document.getElementById('sc-force').value       = sc.daytrading_force_close;
+    document.getElementById('sc-sw-interval').value = sc.swing_interval_minutes;
+    document.getElementById('sc-report').value      = sc.daily_report;
+
+  } catch(e) { showToast('설정 불러오기 실패: ' + e.message); }
+}
+
+async function saveSettings() {
+  const payload = {
+    swing: {
+      enabled:        document.getElementById('sw-enabled').checked,
+      capital:        parseInt(document.getElementById('sw-capital').value) || 0,
+      order_amount:   parseInt(document.getElementById('sw-order-amount').value) || 0,
+      max_positions:  parseInt(document.getElementById('sw-max-pos').value) || 1,
+      stop_loss_pct:  parseFloat(document.getElementById('sw-sl').value) || 0,
+      take_profit_pct:parseFloat(document.getElementById('sw-tp').value) || 0,
+      watchlist:      document.getElementById('sw-watchlist').value,
+      rsi_period:     parseInt(document.getElementById('sw-rsi-period').value) || 14,
+      rsi_oversold:   parseFloat(document.getElementById('sw-rsi-oversold').value) || 30,
+      rsi_overbought: parseFloat(document.getElementById('sw-rsi-overbought').value) || 70,
+      candle_interval:document.getElementById('sw-candle').value,
+    },
+    daytrading: {
+      enabled:          document.getElementById('dt-enabled').checked,
+      capital:          parseInt(document.getElementById('dt-capital').value) || 0,
+      order_amount:     parseInt(document.getElementById('dt-order-amount').value) || 0,
+      max_positions:    parseInt(document.getElementById('dt-max-pos').value) || 1,
+      stop_loss_pct:    parseFloat(document.getElementById('dt-sl').value) || 0,
+      take_profit_pct:  parseFloat(document.getElementById('dt-tp').value) || 0,
+      daily_target_pct: parseFloat(document.getElementById('dt-daily-target').value) || 0,
+      rsi_period:       parseInt(document.getElementById('dt-rsi-period').value) || 7,
+      rsi_oversold:     parseFloat(document.getElementById('dt-rsi-oversold').value) || 35,
+      rsi_overbought:   parseFloat(document.getElementById('dt-rsi-overbought').value) || 65,
+      candle_interval:  document.getElementById('dt-candle').value,
+      force_close_time: document.getElementById('dt-force-close').value,
+      scan_top_n:       parseInt(document.getElementById('dt-scan-n').value) || 20,
+    },
+    news_analysis: {
+      enabled:               document.getElementById('news-enabled').checked,
+      provider:              document.getElementById('news-provider').value,
+      model:                 document.getElementById('news-model').value,
+      lookback_days:         parseInt(document.getElementById('news-lookback').value) || 3,
+      block_buy_on_negative: document.getElementById('news-block-neg').checked,
+      include_dart:          document.getElementById('news-dart').checked,
+    },
+    macro_analysis: {
+      enabled:                document.getElementById('mac-enabled').checked,
+      provider:               document.getElementById('mac-provider').value,
+      model:                  document.getElementById('mac-model').value,
+      update_interval_minutes:parseInt(document.getElementById('mac-interval').value) || 60,
+      pre_market_time:        document.getElementById('mac-pretime').value,
+      apply_to_swing:         document.getElementById('mac-apply-sw').checked,
+      apply_to_day:           document.getElementById('mac-apply-dt').checked,
+    },
+    scheduler: {
+      daytrading_prep:        document.getElementById('sc-prep').value,
+      daytrading_force_close: document.getElementById('sc-force').value,
+      swing_interval_minutes: parseInt(document.getElementById('sc-sw-interval').value) || 30,
+      daily_report:           document.getElementById('sc-report').value,
+    },
+  };
+
+  try {
+    const res = await fetch('/api/config/all', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await res.json();
+    showToast(d.msg);
+    if (d.ok) {
+      document.getElementById('cfg-restart-note').classList.toggle('show', !!d.needs_restart);
+      fetchStatus();
+      fetchPortfolio();
+      if (!d.needs_restart) closeSettings();
+    }
+  } catch(e) { showToast('저장 실패: ' + e.message); }
+}
+
 // ── 초기화 ──
 fetchStatus();
 fetchPortfolio();
 fetchWatchlist();
+fetchMacro();
 connectLogs();
+fetchRecommendation();
 setInterval(fetchStatus, 5000);
 setInterval(fetchPortfolio, 10000);
 setInterval(fetchWatchlist, 5000);
+setInterval(fetchMacro, 60000);
+setInterval(fetchRecommendation, 30000);
 </script>
 </body>
 </html>

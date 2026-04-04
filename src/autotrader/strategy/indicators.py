@@ -33,3 +33,19 @@ def calc_bollinger_bands(
         "middle": round(float(bb.bollinger_mavg().iloc[-1]), 2),
         "lower": round(float(bb.bollinger_lband().iloc[-1]), 2),
     }
+
+
+def calc_macd(
+    closes: list[float],
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> dict[str, float]:
+    """MACD (최신값): macd선, signal선, histogram"""
+    series = pd.Series(closes)
+    macd_ind = ta.trend.MACD(close=series, window_fast=fast, window_slow=slow, window_sign=signal)
+    return {
+        "macd": round(float(macd_ind.macd().iloc[-1]), 4),
+        "signal": round(float(macd_ind.macd_signal().iloc[-1]), 4),
+        "histogram": round(float(macd_ind.macd_diff().iloc[-1]), 4),
+    }

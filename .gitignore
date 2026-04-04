@@ -1,13 +1,34 @@
+# API 키 / 비밀값 - 절대 커밋 금지
 .env
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .venv/
 venv/
-dist/
-build/
 *.egg-info/
 .pytest_cache/
+
+# 빌드 산출물
+dist/
+build/
+*.spec.bak
+
+# 로그 / 데이터 (내용은 제외, 폴더 구조는 유지)
 logs/*.log
 data/historical/*.csv
+
+# OS
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+*.swp
+
+# ngrok
+ngrok.exe
+ngrok

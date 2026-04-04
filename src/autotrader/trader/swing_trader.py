@@ -12,6 +12,7 @@ from ..broker.models import Order
 from ..monitor.portfolio import PortfolioMonitor
 from ..monitor.risk_manager import RiskManager
 from ..notification.telegram_notifier import TelegramNotifier
+from ..pipeline.stock_analyzer import StockAnalyzer
 from ..strategy.combined_strategy import CombinedStrategy
 from ..strategy.rsi_strategy import RSIStrategy
 
@@ -31,17 +32,21 @@ class SwingTrader:
         order_amount: int,
         max_positions: int,
         candle_interval: str = "D",
+        use_pipeline: bool = True,
     ):
         self.broker = broker
         self.strategy = strategy
         self.portfolio_monitor = portfolio_monitor
         self.risk_manager = risk_manager
         self.notifier = notifier
-        self.watchlist = watchlist
+        self.watchlist = list(watchlist)
         self.capital = capital          # 스윙 전용 시드머니 한도
         self.order_amount = order_amount
         self.max_positions = max_positions
         self.candle_interval = candle_interval
+        self.use_pipeline = use_pipeline
+        self._analyzer = StockAnalyzer(broker, scan_top_n=30, backtest_months=3) if use_pipeline else None
+        self._pipeline_scores: list = []  # 최근 파이프라인 결과 캐시
 
     def deployed_capital(self, positions) -> int:
         """현재 스윙 포지션에 투입된 금액 (평균매입가 × 수량)"""
@@ -55,9 +60,34 @@ class SwingTrader:
         """추가 매수 가능 금액 = 시드머니 한도 - 현재 투입금"""
         return self.capital - self.deployed_capital(positions)
 
+    def refresh_watchlist(self) -> None:
+        """파이프라인으로 워치리스트 갱신 (매수/강력매수 종목 추가)"""
+        if not self._analyzer:
+            return
+        try:
+            logger.info("[스윙] 파이프라인으로 워치리스트 갱신 중...")
+            scores = self._analyzer.run()
+            self._pipeline_scores = scores
+            pipeline_buys = [s.symbol for s in scores if s.decision in ("매수", "강력매수")]
+            # 기존 watchlist + 파이프라인 추천 종목 합산 (중복 제거, 순서 유지)
+            merged = list(dict.fromkeys(self.watchlist + pipeline_buys))
+            added = [s for s in pipeline_buys if s not in self.watchlist]
+            self.watchlist = merged
+            if added:
+                logger.info(f"[스윙] 파이프라인 추가 종목: {added}")
+                self.notifier.notify_portfolio(
+                    f"[스윙] 파이프라인 추천 종목 추가: {', '.join(added)}"
+                )
+        except Exception as e:
+            logger.warning(f"[스윙] 파이프라인 갱신 오류: {e}")
+
     def run(self) -> None:
         """중장기 전략 1회 실행: 리스크 체크 → RSI+뉴스 신호 → 주문"""
-        logger.info("[스윙] 전략 실행 시작")
+        logger.info(
+            f"[스윙] 전략 실행 시작 | order_amount={self.order_amount:,} "
+            f"max_pos={self.max_positions} sl={self.risk_manager.stop_loss_pct}% "
+            f"tp={self.risk_manager.take_profit_pct}%"
+        )
         try:
             balance = self.portfolio_monitor.get_balance()
             deployed = self.deployed_capital(balance.positions)
