@@ -1,8 +1,9 @@
 """
 거래량 상위 종목 스캐너
-LS증권 t1452 (거래량 상위 조회) 사용
+pykrx로 당일 거래량 상위 종목 조회
 """
 import logging
+from datetime import datetime
 
 from ..broker.ls_broker import LSBroker
 
@@ -19,45 +20,47 @@ class StockScanner:
 
     def get_top_volume_stocks(self, top_n: int = 20) -> list[str]:
         """
-        전일 거래량 상위 종목 반환
-        t1452: 거래량 상위 조회
+        당일 거래량 상위 종목 반환 (pykrx 사용)
         반환: 종목코드 리스트 (필터 적용 후 최대 top_n개)
         """
         logger.info(f"거래량 상위 {top_n}개 종목 스캐닝 시작")
         try:
-            data = self.broker._post(
-                "/stock/market-data",
-                "t1452",
-                {
-                    "t1452InBlock": {
-                        "gubun": "0",        # 0=전체, 1=코스피, 2=코스닥
-                        "qrycnt": top_n * 3, # 필터링 여유분 확보
-                        "cts_shcode": "",    # 연속조회 시작값 (첫 조회는 빈 문자열)
-                    }
-                },
-            )
+            from pykrx import stock as krx
+            today = datetime.now().strftime("%Y%m%d")
+
+            # KOSPI + KOSDAQ 합쳐서 거래량 상위 조회
+            df_kospi  = krx.get_market_trading_volume_by_ticker(today, market="KOSPI")
+            df_kosdaq = krx.get_market_trading_volume_by_ticker(today, market="KOSDAQ")
+
+            import pandas as pd
+            df = pd.concat([df_kospi, df_kosdaq])
+
+            # 거래량 기준 정렬
+            if "거래량" not in df.columns:
+                # 컬럼명이 영문인 경우 대응
+                vol_col = [c for c in df.columns if "volume" in c.lower() or "거래량" in c.lower()]
+                if not vol_col:
+                    raise ValueError(f"거래량 컬럼 없음: {list(df.columns)}")
+                df = df.rename(columns={vol_col[0]: "거래량"})
+
+            df = df.sort_values("거래량", ascending=False)
+
         except Exception as e:
-            try:
-                resp_text = e.response.text if hasattr(e, 'response') and e.response is not None else ""
-                logger.error(f"t1452 조회 실패: {e} | 응답: {resp_text}")
-            except Exception:
-                logger.error(f"t1452 조회 실패: {e}")
-            return []
+            logger.error(f"pykrx 스캔 실패: {e} — LS 브로커 fallback 시도")
+            return self._scan_via_broker(top_n)
 
-        rows = data.get("t1452OutBlock1", [])
         candidates: list[str] = []
-
-        for row in rows:
-            symbol = str(row.get("shcode", "")).strip()
+        for symbol in df.index:
+            symbol = str(symbol).strip().zfill(6)
             if not symbol:
                 continue
 
+            # 현재가 조회로 가격 필터
             try:
-                price = float(row.get("price", 0))
-            except (ValueError, TypeError):
+                price = self.broker.get_price(symbol)
+            except Exception:
                 continue
 
-            # 가격 필터
             if price < _MIN_PRICE or price > _MAX_PRICE:
                 logger.debug(f"[{symbol}] 가격 필터 제외: {price:,.0f}원")
                 continue
@@ -68,3 +71,8 @@ class StockScanner:
 
         logger.info(f"스캔 결과: {len(candidates)}개 종목 선택 → {candidates}")
         return candidates
+
+    def _scan_via_broker(self, top_n: int) -> list[str]:
+        """pykrx 실패 시 LS 브로커 watchlist 기반 fallback (빈 리스트)"""
+        logger.warning("pykrx 불가 — 워치리스트 비어있음. 종목을 수동으로 추가해주세요.")
+        return []
