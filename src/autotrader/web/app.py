@@ -41,6 +41,7 @@ from ..strategy.combined_strategy import CombinedStrategy
 from ..strategy.rsi_strategy import RSIStrategy
 from ..trader.daytrader import DayTrader
 from ..trader.swing_trader import SwingTrader
+from ..version import VERSION, LATEST_CHANGE
 
 logger = logging.getLogger(__name__)
 
@@ -705,6 +706,10 @@ def create_app() -> Flask:
     def index():
         return render_template("index.html")
 
+    @app.route("/api/version")
+    def api_version():
+        return jsonify({"version": VERSION, "change": LATEST_CHANGE})
+
     @app.route("/api/status")
     @login_required
     def api_status():
@@ -714,6 +719,8 @@ def create_app() -> Flask:
             "schedule": bot.get_schedule(),
             "config": bot.get_config(),
             "now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "version": VERSION,
+            "change": LATEST_CHANGE,
         })
 
     @app.route("/api/portfolio")

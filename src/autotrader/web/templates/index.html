@@ -187,6 +187,7 @@
   <h1>KRX 자동매매</h1>
   <span id="status-badge" class="badge off">정지</span>
   <span id="time"></span>
+  <span id="version-badge" title="" style="font-size:11px;color:var(--muted);margin-left:4px;cursor:default"></span>
   <div class="ml-auto" style="display:flex;gap:8px;align-items:center">
     <button class="btn btn-sm" style="background:var(--bg3);color:var(--text);border:1px solid var(--border)" onclick="openSettings()">⚙ 설정</button>
     <button id="btn-toggle" class="btn btn-start" onclick="toggleBot()">시작</button>
@@ -761,6 +762,13 @@ async function fetchStatus() {
       document.getElementById('cfg-dt-ord').textContent = fmtW(dt.order_amount);
       document.getElementById('cfg-sw-sl').textContent  = sw.stop_loss + '% / +' + sw.take_profit + '%';
       document.getElementById('cfg-dt-sl').textContent  = dt.stop_loss + '% / +' + dt.take_profit + '%';
+    }
+
+    // 버전 표시
+    if (d.version) {
+      const vb = document.getElementById('version-badge');
+      vb.textContent = 'v' + d.version;
+      if (d.change) vb.title = d.change;
     }
   } catch(e) {}
 }
