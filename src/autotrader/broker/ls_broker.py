@@ -87,9 +87,18 @@ class LSBroker:
         url = f"{self._host}{path}"
         resp = self._session.post(url, headers=self._headers(tr_cd), json=body, timeout=10)
         if not resp.ok:
-            logger.debug(f"[{tr_cd}] {resp.status_code} 에러 응답: {resp.text[:200]}")
+            logger.warning(f"[{tr_cd}] HTTP {resp.status_code} 에러: {resp.text[:200]}")
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+
+        # LS API 에러코드 감지 (HTTP 200으로 오는 에러)
+        rsp_cd = data.get("rsp_cd", "")
+        if rsp_cd and rsp_cd != "00000000":
+            rsp_msg = data.get("rsp_msg", "")
+            logger.warning(f"[{tr_cd}] LS API 에러 [{rsp_cd}]: {rsp_msg}")
+            raise RuntimeError(f"[{tr_cd}] {rsp_cd}: {rsp_msg}")
+
+        return data
 
     # ── 시세 조회 ──────────────────────────────────────────────────────────────
 

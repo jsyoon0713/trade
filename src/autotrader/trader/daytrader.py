@@ -465,6 +465,7 @@ class DayTrader:
             try:
                 ohlcv = self._get_ohlcv(symbol)
                 if not ohlcv:
+                    logger.warning(f"[단타][{symbol}] 분봉 데이터 없음 (ETF 또는 API 오류) — 스킵")
                     continue
 
                 result = self._strategy.generate_signal(symbol, ohlcv)
@@ -608,13 +609,18 @@ class DayTrader:
     # ── 내부 유틸 ────────────────────────────────────────────────────────────
 
     def _get_ohlcv(self, symbol: str) -> list[dict]:
-        """OHLCV 캐시 (60초) — API 과다 호출 방지"""
+        """OHLCV 캐시 (60초) — API 과다 호출 방지
+        count=80: 5분봉×80 = 400분 → 당일 시초가(9:00)부터 현재까지 커버
+        → strategy의 opens[0]이 실제 당일 시초가 근사값이 됨
+        """
         now = datetime.now()
         if symbol in self._ohlcv_cache:
             cached_time, cached_data = self._ohlcv_cache[symbol]
             if (now - cached_time).total_seconds() < _OHLCV_CACHE_TTL_SECS:
                 return cached_data
-        data = self.broker.get_ohlcv(symbol, period=self.candle_interval, count=30)
+        data = self.broker.get_ohlcv(symbol, period=self.candle_interval, count=80)
+        if not data:
+            logger.debug(f"[단타][{symbol}] OHLCV 빈 데이터 — 스킵 (ETF 또는 API 오류)")
         self._ohlcv_cache[symbol] = (now, data)
         return data
 
