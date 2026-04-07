@@ -638,6 +638,11 @@ class BotManager:
 
 bot = BotManager()
 
+# ── 워치리스트 시세 캐시 (30초) — DayTrader.run()과 API 경합 방지 ──────────
+import time as _time
+_WATCHLIST_CACHE: dict = {"data": None, "ts": 0.0}
+_WATCHLIST_CACHE_TTL = 28.0  # 초 (프론트 30s 폴링 주기에 맞춤)
+
 # ── 인증 헬퍼 ──────────────────────────────────────────────────────────────
 
 def _get_credentials():
@@ -719,13 +724,16 @@ def create_app() -> Flask:
     @app.route("/api/watchlist")
     @login_required
     def api_watchlist():
+        # 캐시 히트: 28초 이내 요청은 캐시 반환 (DayTrader.run()과 API 경합 방지)
+        if _WATCHLIST_CACHE["data"] is not None and _time.time() - _WATCHLIST_CACHE["ts"] < _WATCHLIST_CACHE_TTL:
+            return jsonify(_WATCHLIST_CACHE["data"])
+
         if not bot._ensure_broker():
             return jsonify({"error": "브로커 연결 실패"})
         sw_symbols = CFG.get("swing", {}).get("watchlist", [])
         dt_symbols = list(bot._day._watchlist) if bot._day else []
 
         def fetch_quotes(symbols):
-            import time
             quotes = []
             for sym in symbols:
                 try:
@@ -733,13 +741,15 @@ def create_app() -> Flask:
                     quotes.append(q)
                 except Exception as e:
                     logger.warning(f"[{sym}] 시세 조회 실패: {e}")
-                time.sleep(0.05)  # watchlist 루프 간 최소 대기
             return quotes
 
-        return jsonify({
+        result = {
             "swing": fetch_quotes(sw_symbols),
             "daytrading": fetch_quotes(dt_symbols),
-        })
+        }
+        _WATCHLIST_CACHE["data"] = result
+        _WATCHLIST_CACHE["ts"] = _time.time()
+        return jsonify(result)
 
     @app.route("/api/logs")
     @login_required
@@ -854,16 +864,7 @@ def create_app() -> Flask:
             "target_achieved": day.target_achieved,
             "watchlist": day._watchlist,
             "positions": day.get_positions_summary(),
-            "pipeline_scores": [
-                {
-                    "symbol": s.symbol,
-                    "company_name": s.company_name,
-                    "total_score": s.total_score,
-                    "decision": s.decision,
-                }
-                for s in day._pipeline_scores.values()
-                if s.symbol in day._watchlist
-            ],
+            "pipeline_scores": [],
         })
 
     @app.route("/api/daytrading/quick-start", methods=["POST"])

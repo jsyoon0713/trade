@@ -20,7 +20,7 @@ _PAPER_HOST = "https://openapi.ls-sec.co.kr:9090"
 
 # LS증권 API 전역 Rate Limiter — 초당 최대 8건 (10건 한도의 80%)
 _API_LOCK = threading.Lock()
-_API_MIN_INTERVAL = 0.13   # 초 (약 7.7건/초)
+_API_MIN_INTERVAL = 0.20   # 초 (약 5건/초, 여유 확보)
 _API_LAST_CALL: list[float] = [0.0]   # 마지막 호출 시각 (list로 mutable)
 
 
