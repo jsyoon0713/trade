@@ -218,16 +218,17 @@ class LSBroker:
 
     def _fetch_minute_ohlcv(self, symbol: str, minute: int, count: int) -> list[dict]:
         """t8411 분봉"""
+        today = datetime.now().strftime("%Y%m%d")
         data = self._post(
             "/stock/chart",
             "t8411",
             {
                 "t8411InBlock": {
                     "shcode": symbol,
-                    "gubun": "1",   # 0=원주가, 1=수정주가 (분봉은 1/0만 유효)
+                    "gubun": "1",        # 0=원주가, 1=수정주가
                     "qrycnt": count,
-                    "sdate": "",
-                    "edate": "",
+                    "sdate": "20000101", # 충분히 이른 시작일
+                    "edate": today,      # 오늘 날짜 (필수)
                     "cts_date": "",
                     "cts_time": "",
                     "req_cnt": 0,
