@@ -767,8 +767,8 @@ async function fetchStatus() {
     // 버전 표시
     if (d.version) {
       const vb = document.getElementById('version-badge');
-      vb.textContent = 'v' + d.version;
-      if (d.change) vb.title = d.change;
+      vb.textContent = 'v' + d.version + (d.release_date ? '  (' + d.release_date + ')' : '');
+      vb.title = (d.change || '') + (d.release_date ? '\n업데이트: ' + d.release_date : '');
     }
   } catch(e) {}
 }
