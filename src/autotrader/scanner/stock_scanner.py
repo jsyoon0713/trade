@@ -1,17 +1,26 @@
 """
 거래량 상위 종목 스캐너
-pykrx로 당일 거래량 상위 종목 조회
+KRX 데이터포털에 직접 요청하여 당일 거래량 상위 종목 조회
 """
 import logging
 from datetime import datetime
+
+import requests
 
 from ..broker.ls_broker import LSBroker
 
 logger = logging.getLogger(__name__)
 
+_KRX_URL = "https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+_HEADERS = {
+    "Referer": "https://data.krx.co.kr/",
+    "User-Agent": "Mozilla/5.0",
+    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+}
+
 # 가격 필터 기준
-_MIN_PRICE = 1_000     # 1천원 미만 제외 (저가주)
-_MAX_PRICE = 500_000   # 50만원 초과 제외 (고가주 - 소액 매매 어려움)
+_MIN_PRICE = 1_000
+_MAX_PRICE = 500_000
 
 
 class StockScanner:
@@ -20,46 +29,52 @@ class StockScanner:
 
     def get_top_volume_stocks(self, top_n: int = 20) -> list[str]:
         """
-        당일 거래량 상위 종목 반환 (pykrx 사용)
+        당일 거래량 상위 종목 반환 (KRX 직접 조회)
         반환: 종목코드 리스트 (필터 적용 후 최대 top_n개)
         """
         logger.info(f"거래량 상위 {top_n}개 종목 스캐닝 시작")
+        today = datetime.now().strftime("%Y%m%d")
+
+        rows: list[dict] = []
+        for market_id in ("STK", "KSQ"):  # STK=코스피, KSQ=코스닥
+            try:
+                resp = requests.post(
+                    _KRX_URL,
+                    headers=_HEADERS,
+                    data={
+                        "bld": "dbms/MDC/STAT/standard/MDCSTAT01501",
+                        "mktId": market_id,
+                        "trdDd": today,
+                        "share": "1",
+                        "money": "1",
+                        "csvxls_isNo": "false",
+                    },
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                rows.extend(resp.json().get("OutBlock_1", []))
+            except Exception as e:
+                logger.warning(f"KRX {market_id} 조회 실패: {e}")
+
+        if not rows:
+            logger.error("KRX 스캔 실패 — 데이터 없음")
+            return []
+
+        # 거래량 기준 정렬
         try:
-            from pykrx import stock as krx
-            today = datetime.now().strftime("%Y%m%d")
-
-            # KOSPI + KOSDAQ 합쳐서 거래량 상위 조회 (OHLCV에 거래량 포함)
-            import pandas as pd
-            df_kospi  = krx.get_market_ohlcv_by_ticker(today, market="KOSPI")
-            df_kosdaq = krx.get_market_ohlcv_by_ticker(today, market="KOSDAQ")
-            df = pd.concat([df_kospi, df_kosdaq])
-
-            # 거래량 컬럼 찾기
-            vol_col = next(
-                (c for c in df.columns if "거래량" in c or "volume" in c.lower()),
-                None
-            )
-            if vol_col is None:
-                raise ValueError(f"거래량 컬럼 없음: {list(df.columns)}")
-            if vol_col != "거래량":
-                df = df.rename(columns={vol_col: "거래량"})
-
-            df = df.sort_values("거래량", ascending=False)
-
+            rows.sort(key=lambda r: int(str(r.get("ACC_TRDVOL", "0")).replace(",", "")), reverse=True)
         except Exception as e:
-            logger.error(f"pykrx 스캔 실패: {e} — LS 브로커 fallback 시도")
-            return self._scan_via_broker(top_n)
+            logger.warning(f"거래량 정렬 실패: {e}")
 
         candidates: list[str] = []
-        for symbol in df.index:
-            symbol = str(symbol).strip().zfill(6)
-            if not symbol:
+        for row in rows:
+            symbol = str(row.get("ISU_SRT_CD", "")).strip()
+            if not symbol or len(symbol) != 6:
                 continue
 
-            # 현재가 조회로 가격 필터
             try:
-                price = self.broker.get_price(symbol)
-            except Exception:
+                price = float(str(row.get("TDD_CLSPRC", "0")).replace(",", ""))
+            except (ValueError, TypeError):
                 continue
 
             if price < _MIN_PRICE or price > _MAX_PRICE:
@@ -72,8 +87,3 @@ class StockScanner:
 
         logger.info(f"스캔 결과: {len(candidates)}개 종목 선택 → {candidates}")
         return candidates
-
-    def _scan_via_broker(self, top_n: int) -> list[str]:
-        """pykrx 실패 시 LS 브로커 watchlist 기반 fallback (빈 리스트)"""
-        logger.warning("pykrx 불가 — 워치리스트 비어있음. 종목을 수동으로 추가해주세요.")
-        return []
