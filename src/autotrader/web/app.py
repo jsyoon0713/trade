@@ -24,7 +24,7 @@ from flask import (
 ROOT = Path(__file__).parents[3]
 load_dotenv(ROOT / ".env")
 
-with open(ROOT / "config" / "settings.yaml") as f:
+with open(ROOT / "config" / "settings.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
 from ..broker.ls_broker import LSBroker

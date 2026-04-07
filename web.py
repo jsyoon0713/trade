@@ -23,7 +23,7 @@ _log_cfg = WORK_DIR / "config" / "logging.yaml"
 if not _log_cfg.exists():
     _log_cfg = ROOT / "config" / "logging.yaml"
 
-with open(_log_cfg) as f:
+with open(_log_cfg, encoding="utf-8") as f:
     logging.config.dictConfig(yaml.safe_load(f))
 
 from src.autotrader.web.app import create_app

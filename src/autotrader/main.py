@@ -40,12 +40,12 @@ def _prompt_credentials() -> None:
 _prompt_credentials()
 
 # 로깅 설정
-with open(ROOT / "config" / "logging.yaml") as f:
+with open(ROOT / "config" / "logging.yaml", encoding="utf-8") as f:
     logging.config.dictConfig(yaml.safe_load(f))
 logger = logging.getLogger(__name__)
 
 # 설정 로드
-with open(ROOT / "config" / "settings.yaml") as f:
+with open(ROOT / "config" / "settings.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
 from .broker.ls_broker import LSBroker
