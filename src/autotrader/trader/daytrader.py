@@ -463,6 +463,7 @@ class DayTrader:
                 continue
 
             try:
+                import time; time.sleep(0.12)  # LS API 초당 10건 제한 대응
                 ohlcv = self._get_ohlcv(symbol)
                 if not ohlcv:
                     continue
