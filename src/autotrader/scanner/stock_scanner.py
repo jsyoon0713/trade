@@ -41,6 +41,12 @@ class StockScanner:
                     if price < _MIN_PRICE or price > _MAX_PRICE:
                         logger.debug(f"[{symbol}] 가격 필터 제외: {price:,.0f}원")
                         continue
+                    # LS API 검증 — ETF/우선주 등 t1102 미지원 종목 제외
+                    try:
+                        self.broker.get_price(symbol)
+                    except Exception:
+                        logger.debug(f"[{symbol}] LS API 미지원 — 제외 (ETF 등)")
+                        continue
                     if symbol not in candidates:
                         candidates.append(symbol)
             except Exception as e:
