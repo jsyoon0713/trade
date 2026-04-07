@@ -1,18 +1,21 @@
 """
-단타 트레이더 v3 — 거래량 폭발 모멘텀 전략 (버그 수정)
+단타 트레이더 v4 — 주도주 갭업 첫 눌림 전략
 
-수정 사항:
-  1. 최소 보유 시간 (min_hold_minutes) — 진입 직후 즉시 청산 방지
-  2. 하드 스탑 (hard_stop_pct)         — 손실 무제한 확대 방지
-  3. 매도조건 강화 (volume drop AND price down) — 단독 거래량 감소로 청산 방지
-  4. 재진입 쿨다운 (cooldown_minutes)  — 횡보 구간 사고팔기 방지
-  5. 개장 직후 진입 차단 (09:00~09:10) — 개장 오신호 방지
-  6. OHLCV 캐시 (60초)                 — API 과다 호출 방지
-  7. 추격 매수 방지                    — VolumeMomentumStrategy에서 처리
+전략 개요:
+  [필터1] 일봉 추세 : EMA(5) > EMA(20) → 기관이 지속 매수 중인 주도주만 선별
+  [필터2] 갭업 확인 : 오늘 시초가 > 어제 종가 × 0.5%+ → 뉴스/실적 촉매 종목
+  [진입]  VWAP 눌림 반등 : 갭업 후 첫 번째 기관 재매수 시점
+  [손절]  진입가 - 1.0%
+  [익절]  진입가 + 2.0%  → 손익비 1:2, 필요 승률 40%
+
+차별화 포인트 (일반 VWAP봇 대비):
+  - 순수 VWAP봇은 아무 종목이나 VWAP 반응 시 진입 (신호 과다, 노이즈 많음)
+  - 이 전략은 일봉 추세(기관 수급) + 갭업(촉매) + VWAP 타이밍 3중 확인
+  - 진입 빈도는 적지만 성공률이 높음
 
 흐름:
   08:30  morning_prep — 목표·적극도 입력 + 후보 종목 준비
-  09:01~ run (매 1분) — 거래량 폭발 포착 → 진입 → 모멘텀 약화/하드스탑 시 청산
+  09:01~ run (매 1분) — 갭업·추세 필터 → VWAP 눌림 진입 → 익절/손절/VWAP이탈 청산
   15:20  force_close_all — 강제청산
 """
 import logging
@@ -31,8 +34,10 @@ from ..strategy.vwap_pullback_strategy import VWAPPullbackStrategy
 logger = logging.getLogger(__name__)
 
 _PROMPT_TIMEOUT_SECS     = 60
-_OHLCV_CACHE_TTL_SECS    = 60    # OHLCV 캐시 유효 시간
+_OHLCV_CACHE_TTL_SECS    = 60    # 분봉 OHLCV 캐시 유효 시간 (초)
+_DAILY_CACHE_TTL_SECS    = 600   # 일봉 OHLCV 캐시 유효 시간 (10분)
 _MARKET_OPEN_SKIP_MINS   = 10    # 개장 후 N분간 신규 진입 차단 (09:00~09:10)
+_GAP_UP_MIN_PCT          = 0.005 # 갭업 최소 기준: 전일 종가 대비 0.5%+
 
 
 # ── 적극도 정의 ────────────────────────────────────────────────────────────────
@@ -135,7 +140,7 @@ class DayTrader:
         self.aggressiveness   = self._resolve_aggressiveness(aggressiveness)
 
         # 전략 / 설정
-        self._strategy: VolumeMomentumStrategy | None = None
+        self._strategy: VWAPPullbackStrategy | None = None
         self._cfg: dict = {}
         self._apply_aggressiveness()
 
@@ -143,7 +148,8 @@ class DayTrader:
         self._watchlist:    list[str]               = []
         self._positions:    dict[str, DayPosition]  = {}
         self._cooldown:     dict[str, datetime]     = {}   # 청산 후 재진입 금지
-        self._ohlcv_cache:  dict[str, tuple[datetime, list]] = {}  # API 캐시
+        self._ohlcv_cache:  dict[str, tuple[datetime, list]] = {}  # 분봉 API 캐시 (60초)
+        self._daily_cache:  dict[str, tuple[datetime, list]] = {}  # 일봉 API 캐시 (10분)
         self._daily_realized_pnl: float             = 0.0
         self._last_rescan_time: datetime | None     = None
         self._trade_count: int                      = 0
@@ -479,11 +485,23 @@ class DayTrader:
                     logger.warning(f"[단타][{symbol}] 분봉 데이터 없음 (ETF 또는 API 오류) — 스킵")
                     continue
 
+                # ── [필터1] 일봉 EMA 추세 확인 (기관 보유 주도주) ──────────
+                if not self._is_daily_trend_bullish(symbol):
+                    logger.debug(f"[단타][{symbol}] 일봉 하락추세(EMA5<EMA20) — 스킵")
+                    continue
+
+                # ── [필터2] 갭업 확인 (촉매 있는 종목) ────────────────────
+                gap_pct = self._get_gap_pct(symbol, ohlcv)
+                if gap_pct is not None and gap_pct < _GAP_UP_MIN_PCT:
+                    logger.debug(f"[단타][{symbol}] 갭업 미달({gap_pct*100:.2f}% < {_GAP_UP_MIN_PCT*100:.1f}%) — 스킵")
+                    continue
+
                 result = self._strategy.generate_signal(symbol, ohlcv)
                 ind    = result.indicator_values
 
+                gap_str = f" gap={gap_pct*100:+.1f}%" if gap_pct is not None else ""
                 logger.info(
-                    f"[단타][{symbol}] "
+                    f"[단타][{symbol}]{gap_str} "
                     f"VWAP={ind.get('vwap','?')} "
                     f"이격={ind.get('above_vwap','?')}% "
                     f"vol={ind.get('vol_ratio','?')}x "
@@ -634,6 +652,60 @@ class DayTrader:
             logger.debug(f"[단타][{symbol}] OHLCV 빈 데이터 — 스킵 (ETF 또는 API 오류)")
         self._ohlcv_cache[symbol] = (now, data)
         return data
+
+    def _get_daily_ohlcv(self, symbol: str) -> list[dict]:
+        """일봉 OHLCV 캐시 (10분) — EMA 계산용, API 호출 최소화"""
+        now = datetime.now()
+        if symbol in self._daily_cache:
+            cached_time, cached_data = self._daily_cache[symbol]
+            if (now - cached_time).total_seconds() < _DAILY_CACHE_TTL_SECS:
+                return cached_data
+        try:
+            data = self.broker.get_ohlcv(symbol, period="D", count=30)
+        except Exception as e:
+            logger.debug(f"[단타][{symbol}] 일봉 조회 실패: {e}")
+            data = []
+        self._daily_cache[symbol] = (now, data)
+        return data
+
+    def _is_daily_trend_bullish(self, symbol: str) -> bool:
+        """일봉 EMA(5) > EMA(20) 여부 — 기관 지속 매수 중인 주도주 필터
+        데이터 부족(상장 초기 등) 시 True 반환(필터 통과)
+        """
+        daily = self._get_daily_ohlcv(symbol)
+        if len(daily) < 20:
+            return True  # 데이터 부족 → 통과
+        closes = [c["close"] for c in daily]
+        ema5  = self._calc_ema(closes, 5)
+        ema20 = self._calc_ema(closes, 20)
+        return ema5 > ema20
+
+    def _get_gap_pct(self, symbol: str, ohlcv: list[dict]) -> float | None:
+        """오늘 갭업률 계산: (오늘 시초가 - 어제 종가) / 어제 종가
+        계산 불가 시 None 반환 (필터 통과)
+        """
+        today_str = datetime.now().strftime("%Y%m%d")
+        today_candles = [c for c in ohlcv if str(c.get("date", "")).startswith(today_str)]
+        other_candles = [c for c in ohlcv if not str(c.get("date", "")).startswith(today_str)]
+
+        if not today_candles or not other_candles:
+            return None  # 데이터 부족 → 통과
+        today_open     = today_candles[0]["open"]
+        yesterday_close = other_candles[-1]["close"]
+        if yesterday_close <= 0:
+            return None
+        return (today_open - yesterday_close) / yesterday_close
+
+    @staticmethod
+    def _calc_ema(values: list[float], period: int) -> float:
+        """지수이동평균(EMA) 계산"""
+        if len(values) < period:
+            return values[-1] if values else 0.0
+        k = 2 / (period + 1)
+        ema = sum(values[:period]) / period  # 초기값: SMA
+        for v in values[period:]:
+            ema = v * k + ema * (1 - k)
+        return ema
 
     def _calc_order_amount(self) -> int:
         return int(self.capital * self._cfg["capital_ratio"])
