@@ -73,6 +73,8 @@ class LSBroker:
     def _post(self, path: str, tr_cd: str, body: dict) -> dict:
         url = f"{self._host}{path}"
         resp = self._session.post(url, headers=self._headers(tr_cd), json=body, timeout=10)
+        if not resp.ok:
+            logger.debug(f"[{tr_cd}] {resp.status_code} 에러 응답: {resp.text[:200]}")
         resp.raise_for_status()
         return resp.json()
 
