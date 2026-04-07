@@ -15,7 +15,7 @@
 
 흐름:
   08:30  morning_prep — 목표·적극도 입력 + 후보 종목 준비
-  09:01~ run (매 1분) — 갭업·추세 필터 → VWAP 눌림 진입 → 익절/손절/VWAP이탈 청산
+  09:00~ run (매 30초) — 갭업·추세 필터 → VWAP 눌림 진입 → 익절/손절/VWAP이탈 청산
   15:20  force_close_all — 강제청산
 """
 import logging
@@ -34,7 +34,7 @@ from ..strategy.vwap_pullback_strategy import VWAPPullbackStrategy
 logger = logging.getLogger(__name__)
 
 _PROMPT_TIMEOUT_SECS     = 60
-_OHLCV_CACHE_TTL_SECS    = 60    # 분봉 OHLCV 캐시 유효 시간 (초)
+_OHLCV_CACHE_TTL_SECS    = 30    # 분봉 OHLCV 캐시 유효 시간 (초)
 _DAILY_CACHE_TTL_SECS    = 600   # 일봉 OHLCV 캐시 유효 시간 (10분)
 _MARKET_OPEN_SKIP_MINS   = 10    # 개장 후 N분간 신규 진입 차단 (09:00~09:10)
 _GAP_UP_MIN_PCT          = 0.005 # 갭업 최소 기준: 전일 종가 대비 0.5%+
@@ -124,7 +124,7 @@ class DayTrader:
         capital: int = 2_000_000,
         daily_target_pct: float = 1.5,
         aggressiveness: str = "보통",
-        candle_interval: str = "5",
+        candle_interval: str = "1",
         force_close_time: str = "15:20",
     ):
         self.broker            = broker
@@ -638,8 +638,8 @@ class DayTrader:
     # ── 내부 유틸 ────────────────────────────────────────────────────────────
 
     def _get_ohlcv(self, symbol: str) -> list[dict]:
-        """OHLCV 캐시 (60초) — API 과다 호출 방지
-        count=80: 5분봉×80 = 400분 → 당일 시초가(9:00)부터 현재까지 커버
+        """OHLCV 캐시 (30초) — API 과다 호출 방지
+        count=400: 1분봉×400 = 400분 → 당일 시초가(9:00)부터 현재까지 커버
         → strategy의 opens[0]이 실제 당일 시초가 근사값이 됨
         """
         now = datetime.now()
@@ -647,7 +647,7 @@ class DayTrader:
             cached_time, cached_data = self._ohlcv_cache[symbol]
             if (now - cached_time).total_seconds() < _OHLCV_CACHE_TTL_SECS:
                 return cached_data
-        data = self.broker.get_ohlcv(symbol, period=self.candle_interval, count=80)
+        data = self.broker.get_ohlcv(symbol, period=self.candle_interval, count=400)
         if not data:
             logger.debug(f"[단타][{symbol}] OHLCV 빈 데이터 — 스킵 (ETF 또는 API 오류)")
         self._ohlcv_cache[symbol] = (now, data)

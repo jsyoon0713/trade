@@ -473,7 +473,7 @@ class BotManager:
             self._scheduler.add_job(self._morning_prep_with_macro, "cron",
                 day_of_week="mon-fri", hour=prep[0], minute=prep[1], id="daytrading_prep")
             self._scheduler.add_job(self._day.run, "cron",
-                day_of_week="mon-fri", hour="9-15", minute="1-59", id="daytrading_run")
+                day_of_week="mon-fri", hour="9-15", second="0,30", id="daytrading_run")
             self._scheduler.add_job(self._day.force_close_all, "cron",
                 day_of_week="mon-fri", hour=force[0], minute=force[1], id="daytrading_force_close")
 
