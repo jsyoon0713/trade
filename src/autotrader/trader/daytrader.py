@@ -1,26 +1,28 @@
 """
-단타 트레이더 v2 — 거래량 폭발 모멘텀 전략
+단타 트레이더 v3 — 거래량 폭발 모멘텀 전략 (버그 수정)
 
-핵심 철학:
-  - 장 시작과 동시에 거래량이 폭발하는 종목을 포착, 추세에 올라타 반복 매매
-  - 개별 종목 손절/익절 없음 — 모멘텀 소멸 시 매도
-  - 당일 목표 수익률 달성을 최우선 목표로 매수/매도 반복
-  - 적극도(적극/보통/소극)로 투자 공격성 조절
+수정 사항:
+  1. 최소 보유 시간 (min_hold_minutes) — 진입 직후 즉시 청산 방지
+  2. 하드 스탑 (hard_stop_pct)         — 손실 무제한 확대 방지
+  3. 매도조건 강화 (volume drop AND price down) — 단독 거래량 감소로 청산 방지
+  4. 재진입 쿨다운 (cooldown_minutes)  — 횡보 구간 사고팔기 방지
+  5. 개장 직후 진입 차단 (09:00~09:10) — 개장 오신호 방지
+  6. OHLCV 캐시 (60초)                 — API 과다 호출 방지
+  7. 추격 매수 방지                    — VolumeMomentumStrategy에서 처리
 
 흐름:
-  08:30  morning_prep — 목표·적극도 입력받고 후보 종목 준비
-  09:01~ run (매 1분) — 거래량 폭발 포착 → 진입 → 모멘텀 약화 시 청산 → 재진입 반복
-  15:20  force_close_all — 미청산 포지션 전량 강제청산
+  08:30  morning_prep — 목표·적극도 입력 + 후보 종목 준비
+  09:01~ run (매 1분) — 거래량 폭발 포착 → 진입 → 모멘텀 약화/하드스탑 시 청산
+  15:20  force_close_all — 강제청산
 """
 import logging
 import select
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 from ..broker.ls_broker import LSBroker
-from ..broker.models import Order, Position
 from ..monitor.portfolio import PortfolioMonitor
 from ..notification.telegram_notifier import TelegramNotifier
 from ..scanner.stock_scanner import StockScanner
@@ -28,7 +30,9 @@ from ..strategy.volume_momentum_strategy import VolumeMomentumStrategy
 
 logger = logging.getLogger(__name__)
 
-_PROMPT_TIMEOUT_SECS = 60   # 아침 입력 대기 시간
+_PROMPT_TIMEOUT_SECS     = 60
+_OHLCV_CACHE_TTL_SECS    = 60    # OHLCV 캐시 유효 시간
+_MARKET_OPEN_SKIP_MINS   = 10    # 개장 후 N분간 신규 진입 차단 (09:00~09:10)
 
 
 # ── 적극도 정의 ────────────────────────────────────────────────────────────────
@@ -39,40 +43,51 @@ class AggressivenessLevel(str, Enum):
     CONSERVATIVE = "소극"
 
 
-# 적극도별 파라미터
 _AGGRESSIVENESS_CONFIG: dict[AggressivenessLevel, dict] = {
     AggressivenessLevel.AGGRESSIVE: {
-        "volume_spike_ratio":  2.0,   # 낮은 진입 기준 → 더 자주 진입
-        "exit_volume_ratio":   1.2,   # 거래량 조금 감소해도 청산
-        "momentum_candles":    2,
-        "momentum_threshold":  0.003, # 0.3% 상승 시 진입
-        "consecutive_down":    2,     # 2봉 연속 하락 시 청산
-        "rsi_overbought":      78.0,
-        "capital_ratio":       0.50,  # 1회 투입 = 시드의 50%
-        "max_positions":       2,
-        "rescan_interval_min": 3,
+        "volume_spike_ratio":   2.0,
+        "exit_volume_ratio":    1.2,
+        "momentum_candles":     2,
+        "momentum_threshold":   0.003,
+        "consecutive_down":     2,
+        "rsi_overbought":       78.0,
+        "max_entry_rise_pct":   0.05,   # 시초가 대비 5% 이상 진입 차단
+        "hard_stop_pct":        3.0,    # 진입가 대비 -3% 하드 스탑
+        "min_hold_minutes":     5,      # 최소 5분 보유
+        "cooldown_minutes":     5,      # 청산 후 5분 재진입 금지
+        "capital_ratio":        0.50,
+        "max_positions":        2,
+        "rescan_interval_min":  3,
     },
     AggressivenessLevel.NORMAL: {
-        "volume_spike_ratio":  3.0,
-        "exit_volume_ratio":   1.5,
-        "momentum_candles":    3,
-        "momentum_threshold":  0.005, # 0.5%
-        "consecutive_down":    3,
-        "rsi_overbought":      75.0,
-        "capital_ratio":       0.30,
-        "max_positions":       3,
-        "rescan_interval_min": 5,
+        "volume_spike_ratio":   3.0,
+        "exit_volume_ratio":    1.5,
+        "momentum_candles":     3,
+        "momentum_threshold":   0.005,
+        "consecutive_down":     3,
+        "rsi_overbought":       75.0,
+        "max_entry_rise_pct":   0.04,
+        "hard_stop_pct":        2.5,
+        "min_hold_minutes":     10,
+        "cooldown_minutes":     10,
+        "capital_ratio":        0.30,
+        "max_positions":        3,
+        "rescan_interval_min":  5,
     },
     AggressivenessLevel.CONSERVATIVE: {
-        "volume_spike_ratio":  5.0,
-        "exit_volume_ratio":   2.0,
-        "momentum_candles":    3,
-        "momentum_threshold":  0.010, # 1.0%
-        "consecutive_down":    4,
-        "rsi_overbought":      72.0,
-        "capital_ratio":       0.20,
-        "max_positions":       4,
-        "rescan_interval_min": 10,
+        "volume_spike_ratio":   5.0,
+        "exit_volume_ratio":    2.0,
+        "momentum_candles":     3,
+        "momentum_threshold":   0.010,
+        "consecutive_down":     4,
+        "rsi_overbought":       72.0,
+        "max_entry_rise_pct":   0.03,
+        "hard_stop_pct":        2.0,
+        "min_hold_minutes":     15,
+        "cooldown_minutes":     15,
+        "capital_ratio":        0.20,
+        "max_positions":        4,
+        "rescan_interval_min":  10,
     },
 }
 
@@ -85,6 +100,9 @@ class DayPosition:
     quantity:   int
     avg_price:  float
     entry_time: datetime = field(default_factory=datetime.now)
+
+    def held_minutes(self) -> float:
+        return (datetime.now() - self.entry_time).total_seconds() / 60
 
 
 # ── 메인 클래스 ────────────────────────────────────────────────────────────────
@@ -102,29 +120,31 @@ class DayTrader:
         candle_interval: str = "5",
         force_close_time: str = "15:20",
     ):
-        self.broker           = broker
+        self.broker            = broker
         self.portfolio_monitor = portfolio_monitor
-        self.notifier         = notifier
-        self.scanner          = StockScanner(broker)
-        self.scan_top_n       = scan_top_n
-        self.capital          = capital
-        self.candle_interval  = candle_interval
+        self.notifier          = notifier
+        self.scanner           = StockScanner(broker)
+        self.scan_top_n        = scan_top_n
+        self.capital           = capital
+        self.candle_interval   = candle_interval
         self.force_close_hour, self.force_close_min = map(int, force_close_time.split(":"))
 
-        # 설정값 (morning_prep에서 변경 가능)
         self.daily_target_pct = daily_target_pct
         self.aggressiveness   = self._resolve_aggressiveness(aggressiveness)
 
-        # 상태
+        # 전략 / 설정
         self._strategy: VolumeMomentumStrategy | None = None
         self._cfg: dict = {}
-        self._watchlist:    list[str]              = []
-        self._positions:    dict[str, DayPosition] = {}
-        self._daily_realized_pnl: float            = 0.0
-        self._last_rescan_time: datetime | None    = None
-        self._trade_count: int                     = 0    # 당일 총 체결 횟수
-
         self._apply_aggressiveness()
+
+        # 매매 상태
+        self._watchlist:    list[str]               = []
+        self._positions:    dict[str, DayPosition]  = {}
+        self._cooldown:     dict[str, datetime]     = {}   # 청산 후 재진입 금지
+        self._ohlcv_cache:  dict[str, tuple[datetime, list]] = {}  # API 캐시
+        self._daily_realized_pnl: float             = 0.0
+        self._last_rescan_time: datetime | None     = None
+        self._trade_count: int                      = 0
 
     # ── 설정 적용 ──────────────────────────────────────────────────────────────
 
@@ -137,19 +157,20 @@ class DayTrader:
     def _apply_aggressiveness(self) -> None:
         self._cfg = _AGGRESSIVENESS_CONFIG[self.aggressiveness]
         self._strategy = VolumeMomentumStrategy(
-            volume_spike_ratio=self._cfg["volume_spike_ratio"],
-            exit_volume_ratio=self._cfg["exit_volume_ratio"],
-            momentum_candles=self._cfg["momentum_candles"],
-            momentum_threshold=self._cfg["momentum_threshold"],
-            consecutive_down=self._cfg["consecutive_down"],
-            rsi_overbought=self._cfg["rsi_overbought"],
+            volume_spike_ratio  = self._cfg["volume_spike_ratio"],
+            exit_volume_ratio   = self._cfg["exit_volume_ratio"],
+            momentum_candles    = self._cfg["momentum_candles"],
+            momentum_threshold  = self._cfg["momentum_threshold"],
+            consecutive_down    = self._cfg["consecutive_down"],
+            rsi_overbought      = self._cfg["rsi_overbought"],
+            max_entry_rise_pct  = self._cfg["max_entry_rise_pct"],
         )
         logger.info(
-            f"[단타] 적극도: {self.aggressiveness.value} | "
-            f"거래량기준: {self._cfg['volume_spike_ratio']}x | "
-            f"모멘텀: {self._cfg['momentum_threshold']*100:.1f}% | "
-            f"1회투입: {self._cfg['capital_ratio']*100:.0f}% | "
-            f"최대포지션: {self._cfg['max_positions']}"
+            f"[단타] 적극도={self.aggressiveness.value} | "
+            f"거래량기준={self._cfg['volume_spike_ratio']}x | "
+            f"하드스탑=-{self._cfg['hard_stop_pct']}% | "
+            f"최소보유={self._cfg['min_hold_minutes']}분 | "
+            f"쿨다운={self._cfg['cooldown_minutes']}분"
         )
 
     # ── 목표 수익률 프로퍼티 ────────────────────────────────────────────────────
@@ -175,13 +196,9 @@ class DayTrader:
     # ── 08:30 아침 준비 ────────────────────────────────────────────────────────
 
     def morning_prep(self) -> None:
-        """
-        08:30 단타 준비
-        1) 현재 설정 표시 + 목표 수익률·적극도 입력받기
-        2) 거래량 상위 후보 스캔
-        3) 워치리스트 설정
-        """
         self._positions.clear()
+        self._cooldown.clear()
+        self._ohlcv_cache.clear()
         self._daily_realized_pnl = 0.0
         self._last_rescan_time   = None
         self._trade_count        = 0
@@ -191,35 +208,37 @@ class DayTrader:
         print("=" * 60)
         print(f"  현재 설정 → 목표: {self.daily_target_pct}% | 적극도: {self.aggressiveness.value}")
         print(f"  시드머니: {self.capital:,}원 | 1회투입: {self.capital * self._cfg['capital_ratio']:,.0f}원")
+        print(f"  하드스탑: -{self._cfg['hard_stop_pct']}% | 최소보유: {self._cfg['min_hold_minutes']}분")
         print()
 
-        # ── 목표 수익률 입력 ──────────────────────────────────────────────
+        # 목표 수익률 입력
         print(f"[1] 당일 목표 수익률 (%) [Enter = {self.daily_target_pct}% 유지]:")
-        print(f"    예) 1.5  → {self.capital * 1.5 / 100:,.0f}원 목표")
         target_input = self._read_input("    입력: ", _PROMPT_TIMEOUT_SECS).strip()
         if target_input:
             try:
                 new_target = float(target_input)
                 if 0 < new_target <= 20:
                     self.daily_target_pct = new_target
-                    print(f"    ✓ 목표 수익률: {self.daily_target_pct}% ({self.daily_target_amount:,.0f}원)")
+                    print(f"    ✓ 목표: {self.daily_target_pct}% ({self.daily_target_amount:,.0f}원)")
                 else:
-                    print(f"    (범위 초과 — 기존값 {self.daily_target_pct}% 유지)")
+                    print(f"    (범위 초과 — 기존값 유지)")
             except ValueError:
-                print(f"    (잘못된 입력 — 기존값 {self.daily_target_pct}% 유지)")
+                print(f"    (잘못된 입력 — 기존값 유지)")
         else:
             print(f"    ✓ 기존 유지: {self.daily_target_pct}% ({self.daily_target_amount:,.0f}원)")
 
-        # ── 적극도 선택 ───────────────────────────────────────────────────
+        # 적극도 선택
         print()
         print(f"[2] 적극도 선택 [Enter = {self.aggressiveness.value} 유지]:")
-        print("    [1] 적극 — 거래량 2x, 0.3% 모멘텀, 시드 50% 투입, 최대 2포지션")
-        print("    [2] 보통 — 거래량 3x, 0.5% 모멘텀, 시드 30% 투입, 최대 3포지션")
-        print("    [3] 소극 — 거래량 5x, 1.0% 모멘텀, 시드 20% 투입, 최대 4포지션")
+        print("    [1] 적극 — 거래량 2x, 하드스탑 3%, 최소보유 5분")
+        print("    [2] 보통 — 거래량 3x, 하드스탑 2.5%, 최소보유 10분")
+        print("    [3] 소극 — 거래량 5x, 하드스탑 2%, 최소보유 15분")
         agg_input = self._read_input("    입력: ", _PROMPT_TIMEOUT_SECS).strip()
-        mapping = {"1": AggressivenessLevel.AGGRESSIVE, "적극": AggressivenessLevel.AGGRESSIVE,
-                   "2": AggressivenessLevel.NORMAL,     "보통": AggressivenessLevel.NORMAL,
-                   "3": AggressivenessLevel.CONSERVATIVE,"소극": AggressivenessLevel.CONSERVATIVE}
+        mapping = {
+            "1": AggressivenessLevel.AGGRESSIVE,  "적극": AggressivenessLevel.AGGRESSIVE,
+            "2": AggressivenessLevel.NORMAL,       "보통": AggressivenessLevel.NORMAL,
+            "3": AggressivenessLevel.CONSERVATIVE, "소극": AggressivenessLevel.CONSERVATIVE,
+        }
         if agg_input in mapping:
             self.aggressiveness = mapping[agg_input]
             self._apply_aggressiveness()
@@ -227,43 +246,33 @@ class DayTrader:
         else:
             print(f"    ✓ 기존 유지: {self.aggressiveness.value}")
 
-        # ── 거래량 상위 스캔 ──────────────────────────────────────────────
+        # 거래량 상위 스캔
         print()
         print(f"[단타] 거래량 상위 {self.scan_top_n}개 종목 스캔 중...")
         candidates = self.scanner.get_top_volume_stocks(self.scan_top_n)
         self._watchlist = candidates
         self._last_rescan_time = datetime.now()
 
-        print(f"\n[단타] 초기 후보 종목 ({len(self._watchlist)}개):")
-        for sym in self._watchlist:
-            print(f"  {sym}")
+        print(f"\n[단타] 초기 후보 종목 ({len(self._watchlist)}개): {self._watchlist}")
 
-        # ── 요약 알림 ─────────────────────────────────────────────────────
         print()
         print("=" * 60)
-        print(f"[단타] 준비 완료 — 09:01 장 시작 시 자동 매매 시작")
-        print(f"  목표: {self.daily_target_pct}% ({self.daily_target_amount:,.0f}원)")
-        print(f"  적극도: {self.aggressiveness.value} | 후보: {len(self._watchlist)}개")
+        print(f"[단타] 준비 완료 — 09:{_MARKET_OPEN_SKIP_MINS:02d} 이후 자동 매매 시작")
+        print(f"  목표: {self.daily_target_pct}% | 적극도: {self.aggressiveness.value}")
+        print(f"  하드스탑: -{self._cfg['hard_stop_pct']}% | 쿨다운: {self._cfg['cooldown_minutes']}분")
         print("=" * 60)
         print()
 
         self.notifier.notify_portfolio(
             f"[단타] 준비 완료\n"
             f"목표: {self.daily_target_pct}% ({self.daily_target_amount:,.0f}원)\n"
-            f"적극도: {self.aggressiveness.value}\n"
-            f"후보 종목: {len(self._watchlist)}개"
+            f"적극도: {self.aggressiveness.value} | 후보: {len(self._watchlist)}개\n"
+            f"하드스탑: -{self._cfg['hard_stop_pct']}%"
         )
 
     # ── 장중 실행 (매 1분) ────────────────────────────────────────────────────
 
     def run(self) -> None:
-        """
-        매 1분 실행:
-        1) 목표 달성 체크 → 신규 매수 중단
-        2) 워치리스트 재스캔 (N분마다)
-        3) 보유 종목 모멘텀 약화 체크 → 청산
-        4) 신규 진입 체크
-        """
         if not self._watchlist and not self._positions:
             logger.debug("[단타] 워치리스트 없음 — 스킵")
             return
@@ -277,34 +286,45 @@ class DayTrader:
         )
 
         try:
-            # 목표 달성 시 보유 종목 리스크 체크만 계속
             if self.target_achieved:
                 logger.info("[단타] 목표 달성 — 신규 매수 중단, 보유 종목 모니터링만 계속")
                 self._check_exits()
                 return
 
-            # 워치리스트 재스캔
             self._maybe_rescan()
-
-            # 보유 종목 모멘텀 약화 체크
             self._check_exits()
 
-            # 신규 진입 체크
             if len(self._positions) < self._cfg["max_positions"]:
-                self._check_entries()
+                if self._is_market_open_rush():
+                    logger.info(f"[단타] 개장 직후 {_MARKET_OPEN_SKIP_MINS}분 진입 차단 중")
+                else:
+                    self._check_entries()
 
         except Exception as e:
             logger.exception(f"[단타] 실행 오류: {e}")
             self.notifier.notify_error(f"[단타] {e}")
 
+    # ── 개장 직후 체크 ────────────────────────────────────────────────────────
+
+    def _is_market_open_rush(self) -> bool:
+        """09:00 ~ 09:N 진입 차단"""
+        now = datetime.now()
+        return now.hour == 9 and now.minute < _MARKET_OPEN_SKIP_MINS
+
+    # ── 쿨다운 체크 ───────────────────────────────────────────────────────────
+
+    def _is_in_cooldown(self, symbol: str) -> bool:
+        if symbol not in self._cooldown:
+            return False
+        elapsed = (datetime.now() - self._cooldown[symbol]).total_seconds() / 60
+        return elapsed < self._cfg["cooldown_minutes"]
+
     # ── 재스캔 ────────────────────────────────────────────────────────────────
 
     def _maybe_rescan(self) -> None:
-        """N분마다 거래량 상위 재스캔 — 더 강한 종목으로 워치리스트 교체"""
         if self._last_rescan_time is None:
             self._last_rescan_time = datetime.now()
             return
-
         elapsed = (datetime.now() - self._last_rescan_time).total_seconds() / 60
         if elapsed < self._cfg["rescan_interval_min"]:
             return
@@ -313,38 +333,54 @@ class DayTrader:
         try:
             fresh = self.scanner.get_top_volume_stocks(self.scan_top_n)
             held  = set(self._positions.keys())
-
-            # 보유 중인 종목은 유지, 새 종목 추가
             new_list = list(held) + [s for s in fresh if s not in held]
             added   = [s for s in fresh if s not in self._watchlist]
             removed = [s for s in self._watchlist if s not in new_list and s not in held]
-
             self._watchlist        = new_list
             self._last_rescan_time = datetime.now()
-
             if added or removed:
                 logger.info(f"[단타] 워치리스트 갱신 | 추가: {added} | 제거: {removed}")
         except Exception as e:
             logger.warning(f"[단타] 재스캔 실패: {e}")
 
-    # ── 모멘텀 약화 → 청산 ───────────────────────────────────────────────────
+    # ── 청산 체크 ────────────────────────────────────────────────────────────
 
     def _check_exits(self) -> None:
         for symbol, pos in list(self._positions.items()):
             try:
-                ohlcv = self.broker.get_ohlcv(symbol, period=self.candle_interval, count=30)
+                ohlcv = self._get_ohlcv(symbol)
                 if not ohlcv:
                     continue
 
-                result = self._strategy.check_exit(symbol, ohlcv, entry_price=pos.avg_price)
+                current_price = ohlcv[-1]["close"]
+                pnl_pct = (current_price - pos.avg_price) / pos.avg_price * 100
 
+                # ① 하드 스탑 (최소 보유 시간 무관하게 즉시 청산)
+                if pnl_pct <= -self._cfg["hard_stop_pct"]:
+                    reason = (
+                        f"하드 스탑 {pnl_pct:.2f}% ≤ -{self._cfg['hard_stop_pct']}%"
+                    )
+                    logger.warning(f"[단타][{symbol}] {reason}")
+                    self._execute_sell(symbol, pos, reason)
+                    continue
+
+                # ② 최소 보유 시간 미충족 → 모멘텀 청산 조건 무시
+                if pos.held_minutes() < self._cfg["min_hold_minutes"]:
+                    logger.debug(
+                        f"[단타][{symbol}] 최소보유 미충족 "
+                        f"({pos.held_minutes():.1f}분 < {self._cfg['min_hold_minutes']}분) — 유지"
+                    )
+                    continue
+
+                # ③ 모멘텀 약화 청산
+                result = self._strategy.check_exit(symbol, ohlcv, entry_price=pos.avg_price)
                 if result.signal.value == "sell":
                     self._execute_sell(symbol, pos, result.reason)
 
             except Exception as e:
                 logger.warning(f"[단타][{symbol}] 청산 체크 오류: {e}")
 
-    # ── 거래량 폭발 → 진입 ───────────────────────────────────────────────────
+    # ── 진입 체크 ────────────────────────────────────────────────────────────
 
     def _check_entries(self) -> None:
         try:
@@ -359,8 +395,16 @@ class DayTrader:
             if symbol in self._positions:
                 continue
 
+            # 쿨다운 체크
+            if self._is_in_cooldown(symbol):
+                remaining = self._cfg["cooldown_minutes"] - (
+                    datetime.now() - self._cooldown[symbol]
+                ).total_seconds() / 60
+                logger.debug(f"[단타][{symbol}] 쿨다운 중 ({remaining:.0f}분 남음)")
+                continue
+
             try:
-                ohlcv = self.broker.get_ohlcv(symbol, period=self.candle_interval, count=30)
+                ohlcv = self._get_ohlcv(symbol)
                 if not ohlcv:
                     continue
 
@@ -371,7 +415,7 @@ class DayTrader:
                     f"[단타][{symbol}] "
                     f"vol={ind.get('vol_ratio','?')}x "
                     f"momentum={ind.get('momentum_pct','?')}% "
-                    f"RSI={ind.get('rsi','?')} "
+                    f"open_rise={ind.get('open_rise_pct','?')}% "
                     f"→ {result.signal.value}"
                 )
 
@@ -380,7 +424,7 @@ class DayTrader:
                     avail        = self.capital - self._deployed_capital()
 
                     if avail < order_amount:
-                        logger.info(f"[단타] 가용 자금 부족 ({avail:,} < {order_amount:,}) — 진입 대기")
+                        logger.info(f"[단타] 가용 자금 부족 ({avail:,} < {order_amount:,})")
                         break
 
                     current_price = ohlcv[-1]["close"]
@@ -411,11 +455,16 @@ class DayTrader:
             current_price = self.broker.get_price(symbol)
             pnl           = (current_price - pos.avg_price) * pos.quantity
             self._daily_realized_pnl += pnl
-            self._trade_count += 1
+            self._trade_count        += 1
 
             order = self.broker.sell_market(symbol, pos.quantity, memo=reason)
             self.notifier.notify_order(order)
             del self._positions[symbol]
+
+            # 쿨다운 등록
+            self._cooldown[symbol] = datetime.now()
+            # 캐시 무효화
+            self._ohlcv_cache.pop(symbol, None)
 
             pnl_pct = (current_price - pos.avg_price) / pos.avg_price * 100
             logger.info(
@@ -423,7 +472,6 @@ class DayTrader:
                 f"손익: {pnl:+,.0f}원 ({pnl_pct:+.2f}%) | {self._pnl_progress_str()}"
             )
 
-            # 목표 달성 알림
             if self.target_achieved:
                 msg = (
                     f"[단타] 당일 목표 달성!\n"
@@ -452,19 +500,17 @@ class DayTrader:
                 current_price = self.broker.get_price(symbol)
                 pnl           = (current_price - pos.avg_price) * pos.quantity
                 self._daily_realized_pnl += pnl
-                self._trade_count += 1
+                self._trade_count        += 1
 
                 order = self.broker.sell_market(symbol, pos.quantity, memo="[단타] 장 마감 강제청산")
                 self.notifier.notify_order(order)
                 closed.append(symbol)
-                logger.info(f"[단타][{symbol}] 강제청산 {pos.quantity}주")
             except Exception as e:
                 logger.error(f"[단타][{symbol}] 강제청산 실패: {e}")
                 self.notifier.notify_error(f"[단타] {symbol} 강제청산 실패: {e}")
 
         for sym in closed:
             self._positions.pop(sym, None)
-
         self._watchlist.clear()
 
         msg = (
@@ -475,27 +521,19 @@ class DayTrader:
         logger.info(msg)
         self.notifier.notify_portfolio(msg)
 
-    # ── 목표 수익률 실시간 변경 ───────────────────────────────────────────────
+    # ── 목표·적극도 실시간 변경 ───────────────────────────────────────────────
 
     def update_daily_target(self, new_target_pct: float) -> str:
-        """
-        운영 중 목표 수익률 변경.
-        web.py 또는 CLI에서 호출 가능.
-        """
         if new_target_pct <= 0 or new_target_pct > 20:
-            return f"유효하지 않은 목표값: {new_target_pct}% (0 < 값 ≤ 20)"
+            return f"유효하지 않은 목표값: {new_target_pct}%"
         old = self.daily_target_pct
         self.daily_target_pct = new_target_pct
-        msg = f"[단타] 목표 수익률 변경: {old}% → {new_target_pct}% ({self.daily_target_amount:,.0f}원)"
+        msg = f"[단타] 목표 변경: {old}% → {new_target_pct}% ({self.daily_target_amount:,.0f}원)"
         logger.info(msg)
         self.notifier.notify_portfolio(msg)
         return msg
 
     def update_aggressiveness(self, level: str) -> str:
-        """
-        운영 중 적극도 변경.
-        web.py 또는 CLI에서 호출 가능.
-        """
         try:
             new_level = self._resolve_aggressiveness(level)
         except Exception:
@@ -510,8 +548,18 @@ class DayTrader:
 
     # ── 내부 유틸 ────────────────────────────────────────────────────────────
 
+    def _get_ohlcv(self, symbol: str) -> list[dict]:
+        """OHLCV 캐시 (60초) — API 과다 호출 방지"""
+        now = datetime.now()
+        if symbol in self._ohlcv_cache:
+            cached_time, cached_data = self._ohlcv_cache[symbol]
+            if (now - cached_time).total_seconds() < _OHLCV_CACHE_TTL_SECS:
+                return cached_data
+        data = self.broker.get_ohlcv(symbol, period=self.candle_interval, count=30)
+        self._ohlcv_cache[symbol] = (now, data)
+        return data
+
     def _calc_order_amount(self) -> int:
-        """1회 투입 금액 = 시드 × capital_ratio"""
         return int(self.capital * self._cfg["capital_ratio"])
 
     def _deployed_capital(self) -> int:
@@ -519,7 +567,6 @@ class DayTrader:
 
     @staticmethod
     def _read_input(prompt: str, timeout_secs: int) -> str:
-        """타임아웃 있는 stdin 읽기 (Windows에서는 빈 문자열 반환)"""
         if sys.platform == "win32":
             return ""
         print(prompt, end="", flush=True)
@@ -533,17 +580,17 @@ class DayTrader:
         return ""
 
     def get_positions_summary(self) -> str:
-        """단타 포지션 현황 문자열 반환"""
         if not self._positions:
             return "[단타] 보유 포지션 없음"
         lines = ["[단타] 현재 포지션:"]
         for sym, pos in self._positions.items():
             try:
-                price   = self.broker.get_price(sym)
-                pct     = (price - pos.avg_price) / pos.avg_price * 100
+                price = self.broker.get_price(sym)
+                pct   = (price - pos.avg_price) / pos.avg_price * 100
+                held  = pos.held_minutes()
                 lines.append(
                     f"  {sym}: {pos.quantity}주 | 매입 {pos.avg_price:,.0f} | "
-                    f"현재 {price:,.0f} ({pct:+.2f}%)"
+                    f"현재 {price:,.0f} ({pct:+.2f}%) | 보유 {held:.0f}분"
                 )
             except Exception:
                 lines.append(f"  {sym}: {pos.quantity}주 | 매입 {pos.avg_price:,.0f}")
