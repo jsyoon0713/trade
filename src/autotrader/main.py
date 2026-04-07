@@ -55,7 +55,7 @@ from .notification.telegram_notifier import TelegramNotifier
 from .strategy.rsi_strategy import RSIStrategy
 from .strategy.combined_strategy import CombinedStrategy
 from .trader.swing_trader import SwingTrader
-from .trader.daytrader import DayTrader
+from .trader.daytrader import DayTrader, AggressivenessLevel
 
 
 def build_components():
@@ -114,13 +114,8 @@ def build_components():
         notifier=notifier,
         scan_top_n=dt_cfg.get("scan_top_n", 20),
         capital=dt_cfg.get("capital", 2_000_000),
-        order_amount=dt_cfg.get("order_amount", 200_000),
-        take_profit_pct=dt_cfg.get("take_profit_pct", 2.0),
-        stop_loss_pct=dt_cfg.get("stop_loss_pct", -1.5),
-        max_positions=dt_cfg.get("max_positions", 3),
-        rsi_period=dt_cfg.get("rsi_period", 7),
-        rsi_oversold=dt_cfg.get("rsi_oversold", 35.0),
-        rsi_overbought=dt_cfg.get("rsi_overbought", 65.0),
+        daily_target_pct=dt_cfg.get("daily_target_pct", 1.5),
+        aggressiveness=dt_cfg.get("aggressiveness", "보통"),
         candle_interval=str(dt_cfg.get("candle_interval", "5")),
         force_close_time=dt_cfg.get("force_close_time", "15:20"),
     )
@@ -133,7 +128,7 @@ def build_components():
 
 
 def morning_daytrading_prep(day_trader: DayTrader) -> None:
-    """08:30 단타 종목 준비"""
+    """08:30 단타 준비 — 목표·적극도 입력 + 종목 스캔"""
     day_trader.morning_prep()
 
 

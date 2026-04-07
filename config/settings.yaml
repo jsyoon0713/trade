@@ -18,16 +18,12 @@ daytrading:
   enabled: true
   scan_top_n: 20
   capital: 300000
-  order_amount: 200000
-  take_profit_pct: 2.0
-  stop_loss_pct: -1.5
-  force_close_time: '15:20'
-  max_positions: 3
-  rsi_period: 7
-  rsi_oversold: 35.0
-  rsi_overbought: 65.0
-  candle_interval: '5'
+  # 당일 목표 수익률 (%) — 08:30 준비 시 변경 가능
   daily_target_pct: 1.5
+  # 적극도: 적극 / 보통 / 소극 — 08:30 준비 시 변경 가능
+  aggressiveness: 보통
+  force_close_time: '15:20'
+  candle_interval: '5'
 scheduler:
   daytrading_prep: 08:30
   market_open: 09:01
@@ -54,9 +50,6 @@ backtest:
   end_date: '2024-12-31'
   initial_capital: 10000000
   daytrading:
-    rsi_period: 7
-    rsi_oversold: 35
-    rsi_overbought: 65
     candle_interval: '5'
-    take_profit_pct: 2.0
-    stop_loss_pct: -1.5
+    volume_spike_ratio: 3.0
+    momentum_threshold: 0.005

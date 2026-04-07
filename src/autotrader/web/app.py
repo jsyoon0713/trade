@@ -230,12 +230,11 @@ class BotManager:
                 "watchlist": sw.get("watchlist", []),
             },
             "daytrading": {
-                "enabled": dt.get("enabled", True),
-                "capital": dt.get("capital", 2_000_000),
-                "order_amount": dt.get("order_amount", 200_000),
-                "stop_loss": dt.get("stop_loss_pct", -1.5),
-                "take_profit": dt.get("take_profit_pct", 2.0),
-                "force_close": dt.get("force_close_time", "15:20"),
+                "enabled":          dt.get("enabled", True),
+                "capital":          dt.get("capital", 2_000_000),
+                "daily_target_pct": dt.get("daily_target_pct", 1.5),
+                "aggressiveness":   dt.get("aggressiveness", "보통"),
+                "force_close":      dt.get("force_close_time", "15:20"),
             },
         }
 
@@ -264,16 +263,10 @@ class BotManager:
             "daytrading": {
                 "enabled":          dt.get("enabled", True),
                 "capital":          dt.get("capital", 2_000_000),
-                "order_amount":     dt.get("order_amount", 200_000),
-                "max_positions":    dt.get("max_positions", 3),
-                "stop_loss_pct":    dt.get("stop_loss_pct", -1.5),
-                "take_profit_pct":  dt.get("take_profit_pct", 2.0),
+                "daily_target_pct": dt.get("daily_target_pct", 1.5),
+                "aggressiveness":   dt.get("aggressiveness", "보통"),
                 "force_close_time": dt.get("force_close_time", "15:20"),
                 "scan_top_n":       dt.get("scan_top_n", 20),
-                "daily_target_pct": dt.get("daily_target_pct", 0.0),
-                "rsi_period":       dt.get("rsi_period", 7),
-                "rsi_oversold":     dt.get("rsi_oversold", 35),
-                "rsi_overbought":   dt.get("rsi_overbought", 65),
                 "candle_interval":  str(dt.get("candle_interval", "5")),
             },
             "news_analysis": {
@@ -332,16 +325,10 @@ class BotManager:
             CFG["daytrading"].update({
                 "enabled":          bool(dt.get("enabled", True)),
                 "capital":          int(dt.get("capital", 2_000_000)),
-                "order_amount":     int(dt.get("order_amount", 200_000)),
-                "max_positions":    int(dt.get("max_positions", 3)),
-                "stop_loss_pct":    float(dt.get("stop_loss_pct", -1.5)),
-                "take_profit_pct":  float(dt.get("take_profit_pct", 2.0)),
+                "daily_target_pct": float(dt.get("daily_target_pct", 1.5)),
+                "aggressiveness":   str(dt.get("aggressiveness", "보통")),
                 "force_close_time": str(dt.get("force_close_time", "15:20")),
                 "scan_top_n":       int(dt.get("scan_top_n", 20)),
-                "daily_target_pct": float(dt.get("daily_target_pct", 0.0)),
-                "rsi_period":       int(dt.get("rsi_period", 7)),
-                "rsi_oversold":     float(dt.get("rsi_oversold", 35)),
-                "rsi_overbought":   float(dt.get("rsi_overbought", 65)),
                 "candle_interval":  str(dt.get("candle_interval", "5")),
             })
 
@@ -382,13 +369,10 @@ class BotManager:
                     self._swing.risk_manager.take_profit_pct= CFG["swing"]["take_profit_pct"]
 
             if self._day:
-                self._day.capital          = CFG["daytrading"]["capital"]
-                self._day.order_amount     = CFG["daytrading"]["order_amount"]
-                self._day.max_positions    = CFG["daytrading"]["max_positions"]
-                self._day.stop_loss_pct    = CFG["daytrading"]["stop_loss_pct"]
-                self._day.take_profit_pct  = CFG["daytrading"]["take_profit_pct"]
-                self._day.daily_target_pct = CFG["daytrading"]["daily_target_pct"]
-                self._day.scan_top_n       = CFG["daytrading"]["scan_top_n"]
+                self._day.capital    = CFG["daytrading"]["capital"]
+                self._day.scan_top_n = CFG["daytrading"]["scan_top_n"]
+                self._day.update_daily_target(CFG["daytrading"]["daily_target_pct"])
+                self._day.update_aggressiveness(CFG["daytrading"]["aggressiveness"])
 
             # ── YAML 저장 ──
             settings_path = ROOT / "config" / "settings.yaml"
@@ -456,16 +440,10 @@ class BotManager:
             notifier=self._notifier,
             scan_top_n=dt.get("scan_top_n", 20),
             capital=dt.get("capital", 2_000_000),
-            order_amount=dt.get("order_amount", 200_000),
-            take_profit_pct=dt.get("take_profit_pct", 2.0),
-            stop_loss_pct=dt.get("stop_loss_pct", -1.5),
-            max_positions=dt.get("max_positions", 3),
-            rsi_period=dt.get("rsi_period", 7),
-            rsi_oversold=dt.get("rsi_oversold", 35.0),
-            rsi_overbought=dt.get("rsi_overbought", 65.0),
+            daily_target_pct=dt.get("daily_target_pct", 1.5),
+            aggressiveness=dt.get("aggressiveness", "보통"),
             candle_interval=str(dt.get("candle_interval", "5")),
             force_close_time=dt.get("force_close_time", "15:20"),
-            daily_target_pct=dt.get("daily_target_pct", 0.0),
         )
 
         # 매크로 분석 초기화

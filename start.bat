@@ -2,6 +2,43 @@
 chcp 65001 >nul
 title KRX 자동매매 봇
 
+:: ── GitHub 자동 업데이트 ────────────────────────────────────────────────────
+echo.
+echo [업데이트] GitHub 최신 코드 확인 중...
+git fetch origin >nul 2>&1
+if errorlevel 1 (
+    echo [업데이트] Git 조회 실패 (인터넷 연결 확인) - 현재 코드로 계속 진행합니다.
+    goto SKIP_UPDATE
+)
+
+:: 변경사항 있는지 확인 (로컬 HEAD vs 원격 HEAD)
+for /f %%a in ('git rev-parse HEAD') do set LOCAL_HASH=%%a
+for /f %%a in ('git rev-parse origin/master 2^>nul || git rev-parse origin/main 2^>nul') do set REMOTE_HASH=%%a
+
+if "%LOCAL_HASH%"=="%REMOTE_HASH%" (
+    echo [업데이트] 이미 최신 버전입니다.
+    goto SKIP_UPDATE
+)
+
+echo [업데이트] 새 업데이트 발견! 코드를 업데이트합니다...
+git pull origin master >nul 2>&1 || git pull origin main >nul 2>&1
+if errorlevel 1 (
+    echo [업데이트] 업데이트 실패 - 현재 코드로 계속 진행합니다.
+    goto SKIP_UPDATE
+)
+echo [업데이트] 업데이트 완료!
+
+:: requirements 변경 시 패키지도 자동 설치
+git diff --name-only HEAD@{1} HEAD 2>nul | findstr /i "requirements" >nul 2>&1
+if not errorlevel 1 (
+    echo [업데이트] requirements.txt 변경 감지 - 패키지 설치 중...
+    .venv\Scripts\pip.exe install -r requirements.txt -q
+    echo [업데이트] 패키지 설치 완료!
+)
+
+:SKIP_UPDATE
+echo.
+
 :: 가상환경 확인
 if not exist ".venv\Scripts\python.exe" (
     echo [오류] 가상환경이 없습니다. install.bat 을 먼저 실행하세요.
