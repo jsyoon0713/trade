@@ -209,7 +209,7 @@ class LSBroker:
             {
                 "t8411InBlock": {
                     "shcode": symbol,
-                    "gubun": "2",
+                    "gubun": "1",   # 0=원주가, 1=수정주가 (분봉은 1/0만 유효)
                     "qrycnt": count,
                     "sdate": "",
                     "edate": "",
