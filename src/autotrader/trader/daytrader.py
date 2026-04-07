@@ -242,6 +242,10 @@ class DayTrader:
             f"적극도: {self.aggressiveness.value} | 후보: {len(self._watchlist)}개"
         )
 
+        # 즉시 첫 번째 매매 판단 실행 (스케줄러 다음 분 틱을 기다리지 않음)
+        logger.info("[단타] 즉시 첫 번째 매매 판단 시작")
+        self.run()
+
         return {
             "ok": True,
             "msg": f"단타 시작 완료 — 목표 {self.daily_target_pct}%, 적극도 {self.aggressiveness.value}",
