@@ -75,17 +75,24 @@ class StockScanner:
             "money": "1",
             "csvxls_isNo": "false",
         }
-        # 1단계: OTP 발급
-        otp_resp = requests.get(_OTP_URL, params=params, headers=_HEADERS, timeout=10)
+        # 세션으로 쿠키 유지 (OTP → 데이터 요청 간 세션 공유 필수)
+        session = requests.Session()
+        session.headers.update(_HEADERS)
+
+        # 1단계: 메인 페이지 방문 (쿠키 세팅)
+        session.get("https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd", timeout=10)
+
+        # 2단계: OTP 발급
+        otp_resp = session.get(_OTP_URL, params=params, timeout=10)
         otp_resp.raise_for_status()
         otp = otp_resp.text.strip()
 
-        # 2단계: 데이터 조회
-        data_resp = requests.post(
+        # 3단계: 데이터 조회
+        data_resp = session.post(
             _DATA_URL,
             data={"code": otp},
-            headers={**_HEADERS, "Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=15,
         )
         data_resp.raise_for_status()
         return data_resp.json().get("OutBlock_1", [])
