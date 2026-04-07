@@ -56,7 +56,9 @@ class VWAPPullbackStrategy(BaseStrategy):
     # ── 매수 신호 ─────────────────────────────────────────────────────────
 
     def _check_entry(self, symbol: str, ohlcv: list[dict]) -> StrategyResult:
-        today_str = datetime.now().strftime("%Y%m%d")
+        # 마지막 봉의 날짜를 "오늘"로 사용 — 실거래·백테스트 모두 호환
+        last_date = str(ohlcv[-1].get("date", ""))[:8] if ohlcv else ""
+        today_str = last_date or datetime.now().strftime("%Y%m%d")
         today = [c for c in ohlcv if str(c.get("date", "")).startswith(today_str)]
 
         if len(today) < _MIN_TODAY_CANDLES:
@@ -149,7 +151,8 @@ class VWAPPullbackStrategy(BaseStrategy):
         VWAP 이탈 시 청산.
         하드스탑·익절은 DayTrader._check_exits()에서 먼저 처리됨.
         """
-        today_str = datetime.now().strftime("%Y%m%d")
+        last_date = str(ohlcv[-1].get("date", ""))[:8] if ohlcv else ""
+        today_str = last_date or datetime.now().strftime("%Y%m%d")
         today = [c for c in ohlcv if str(c.get("date", "")).startswith(today_str)]
 
         if len(today) < 2:

@@ -784,6 +784,79 @@ def create_app() -> Flask:
         symbols = data.get("symbols") or None  # None이면 자동 스캔
         return jsonify(bot.run_pipeline(symbols))
 
+    @app.route("/api/daytrading/backtest", methods=["POST"])
+    @login_required
+    def api_daytrading_backtest():
+        """단타 전략 백테스트 실행 (백그라운드)"""
+        data = request.get_json(force=True) or {}
+        symbols = [s.strip() for s in data.get("symbols", "").split(",") if s.strip()]
+        if not symbols:
+            return jsonify({"ok": False, "msg": "종목코드를 입력하세요 (쉼표 구분)"})
+        days = int(data.get("days", 45))
+        hard_stop    = float(data.get("hard_stop_pct", 1.0))
+        take_profit  = float(data.get("take_profit_pct", 2.0))
+        gap_up_min   = float(data.get("gap_up_min_pct", 0.5))
+
+        result_box: dict = {}
+
+        def _run():
+            try:
+                from ..backtest.daytrading_backtest import DayTradingBacktest
+                bt = DayTradingBacktest(
+                    hard_stop_pct   = hard_stop,
+                    take_profit_pct = take_profit,
+                    gap_up_min_pct  = gap_up_min,
+                    order_amount    = float(CFG.get("daytrading", {}).get("capital", 2_000_000)) * 0.3,
+                    initial_capital = float(CFG.get("daytrading", {}).get("capital", 2_000_000)),
+                )
+                report = bt.run(symbols, days=days)
+
+                # 직렬화 가능한 형태로 변환
+                all_trades = [
+                    {
+                        "symbol": t.symbol, "date": t.date,
+                        "entry_time": t.entry_time, "exit_time": t.exit_time,
+                        "entry_price": t.entry_price, "exit_price": t.exit_price,
+                        "pnl": t.pnl, "pnl_pct": t.pnl_pct,
+                        "reason": t.reason, "gap_pct": t.gap_pct,
+                    }
+                    for t in report.all_trades
+                ]
+                results = [
+                    {
+                        "symbol": r.symbol,
+                        "num_trades": r.num_trades,
+                        "win_rate": round(r.win_rate, 1),
+                        "avg_win": round(r.avg_win, 3),
+                        "avg_loss": round(r.avg_loss, 3),
+                        "profit_factor": round(r.profit_factor, 2),
+                        "total_pnl": round(r.total_pnl, 0),
+                        "skipped_days": r.skipped_days,
+                    }
+                    for r in report.results
+                ]
+                result_box.update({
+                    "ok": True,
+                    "total_pnl": round(report.total_pnl, 0),
+                    "total_return_pct": round(report.total_return_pct, 2),
+                    "overall_win_rate": round(report.overall_win_rate, 1),
+                    "total_trades": len(all_trades),
+                    "results": results,
+                    "trades": all_trades,
+                    "period": f"{report.start_date} ~ {report.end_date}",
+                })
+            except Exception as e:
+                logger.error(f"[백테스트] 오류: {e}")
+                result_box.update({"ok": False, "msg": str(e)})
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        t.join(timeout=120)
+
+        if not result_box:
+            return jsonify({"ok": False, "msg": "백테스트 시간 초과 (120초)"})
+        return jsonify(result_box)
+
     @app.route("/api/daytrading/target", methods=["POST"])
     @login_required
     def api_set_daily_target():
