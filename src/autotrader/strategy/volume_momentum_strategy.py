@@ -65,7 +65,15 @@ class VolumeMomentumStrategy(BaseStrategy):
         vol_ratio     = current_vol / avg_vol if avg_vol > 0 else 0.0
 
         # ── 추격 매수 방지: 당일 시초가 대비 상승폭 ───────────────────────
-        day_open   = opens[0]   # 조회된 첫 봉의 시가 (당일 시초가 근사)
+        # ohlcv[-1]["date"]는 "YYYYMMDDHHmm" 형식 (분봉: date+time 합산)
+        # 오늘 날짜의 첫 번째 봉 시가를 당일 시초가로 사용
+        from datetime import datetime as _dt
+        today_str = _dt.now().strftime("%Y%m%d")
+        today_candles = [c for c in ohlcv if str(c.get("date", "")).startswith(today_str)]
+        if today_candles:
+            day_open = today_candles[0]["open"]   # 오늘 9:00~9:05 첫 봉 시가
+        else:
+            day_open = opens[0]                   # fallback: 조회 범위 첫 봉
         open_rise  = (current_price - day_open) / day_open if day_open > 0 else 0.0
 
         # ── 가격 모멘텀 ──────────────────────────────────────────────────

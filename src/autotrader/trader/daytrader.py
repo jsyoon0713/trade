@@ -51,10 +51,11 @@ _AGGRESSIVENESS_CONFIG: dict[AggressivenessLevel, dict] = {
         "momentum_threshold":   0.003,
         "consecutive_down":     2,
         "rsi_overbought":       78.0,
-        "max_entry_rise_pct":   0.05,   # 시초가 대비 5% 이상 진입 차단
-        "hard_stop_pct":        3.0,    # 진입가 대비 -3% 하드 스탑
-        "min_hold_minutes":     5,      # 최소 5분 보유
-        "cooldown_minutes":     5,      # 청산 후 5분 재진입 금지
+        "max_entry_rise_pct":   0.07,   # 시초가 대비 7% 이상 진입 차단
+        "hard_stop_pct":        1.5,    # -1.5% 하드 스탑 (손익비 개선)
+        "take_profit_pct":      2.5,    # +2.5% 익절
+        "min_hold_minutes":     5,
+        "cooldown_minutes":     5,
         "capital_ratio":        0.50,
         "max_positions":        2,
         "rescan_interval_min":  3,
@@ -66,9 +67,10 @@ _AGGRESSIVENESS_CONFIG: dict[AggressivenessLevel, dict] = {
         "momentum_threshold":   0.005,
         "consecutive_down":     3,
         "rsi_overbought":       75.0,
-        "max_entry_rise_pct":   0.04,
-        "hard_stop_pct":        2.5,
-        "min_hold_minutes":     10,
+        "max_entry_rise_pct":   0.07,   # 7%로 완화 (오늘 첫봉 기준으로 수정됨)
+        "hard_stop_pct":        1.5,    # -1.5% 하드 스탑 (기존 -2.5% → 손익비 개선)
+        "take_profit_pct":      2.0,    # +2.0% 익절 (손익비 1:1.33, 필요 승률 60%)
+        "min_hold_minutes":     5,      # 10분 → 5분 (빠른 손절 허용)
         "cooldown_minutes":     10,
         "capital_ratio":        0.30,
         "max_positions":        3,
@@ -81,9 +83,10 @@ _AGGRESSIVENESS_CONFIG: dict[AggressivenessLevel, dict] = {
         "momentum_threshold":   0.010,
         "consecutive_down":     4,
         "rsi_overbought":       72.0,
-        "max_entry_rise_pct":   0.03,
-        "hard_stop_pct":        2.0,
-        "min_hold_minutes":     15,
+        "max_entry_rise_pct":   0.05,
+        "hard_stop_pct":        1.2,    # -1.2% 하드 스탑
+        "take_profit_pct":      1.8,    # +1.8% 익절
+        "min_hold_minutes":     10,
         "cooldown_minutes":     15,
         "capital_ratio":        0.20,
         "max_positions":        4,
@@ -424,6 +427,14 @@ class DayTrader:
                         f"하드 스탑 {pnl_pct:.2f}% ≤ -{self._cfg['hard_stop_pct']}%"
                     )
                     logger.warning(f"[단타][{symbol}] {reason}")
+                    self._execute_sell(symbol, pos, reason)
+                    continue
+
+                # ① 익절 (최소 보유 시간 무관하게 즉시 청산)
+                take_profit = self._cfg.get("take_profit_pct", 0)
+                if take_profit > 0 and pnl_pct >= take_profit:
+                    reason = f"익절 {pnl_pct:.2f}% ≥ +{take_profit}%"
+                    logger.info(f"[단타][{symbol}] {reason}")
                     self._execute_sell(symbol, pos, reason)
                     continue
 
