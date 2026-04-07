@@ -30,9 +30,9 @@ class StockScanner:
                 "t1452",
                 {
                     "t1452InBlock": {
-                        "gubun": "0",       # 0=전체, 1=코스피, 2=코스닥
-                        "qrycnt": top_n * 3,  # 필터링 여유분 확보
-                        "tradno": "0",
+                        "gubun": "0",        # 0=전체, 1=코스피, 2=코스닥
+                        "qrycnt": top_n * 3, # 필터링 여유분 확보
+                        "cts_shcode": "",    # 연속조회 시작값 (첫 조회는 빈 문자열)
                     }
                 },
             )
