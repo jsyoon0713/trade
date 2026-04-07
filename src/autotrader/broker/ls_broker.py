@@ -5,6 +5,7 @@ API 문서: https://openapi.ls-sec.co.kr/apiservice
 """
 import logging
 import os
+import threading
 import time
 from datetime import datetime
 
@@ -16,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 _REAL_HOST = "https://openapi.ls-sec.co.kr:8080"
 _PAPER_HOST = "https://openapi.ls-sec.co.kr:9090"
+
+# LS증권 API 전역 Rate Limiter — 초당 최대 8건 (10건 한도의 80%)
+_API_LOCK = threading.Lock()
+_API_MIN_INTERVAL = 0.13   # 초 (약 7.7건/초)
+_API_LAST_CALL: list[float] = [0.0]   # 마지막 호출 시각 (list로 mutable)
 
 
 class LSBroker:
@@ -71,6 +77,13 @@ class LSBroker:
         }
 
     def _post(self, path: str, tr_cd: str, body: dict) -> dict:
+        # 전역 Rate Limiter: 모든 API 호출을 직렬화하여 초당 한도 준수
+        with _API_LOCK:
+            elapsed = time.time() - _API_LAST_CALL[0]
+            if elapsed < _API_MIN_INTERVAL:
+                time.sleep(_API_MIN_INTERVAL - elapsed)
+            _API_LAST_CALL[0] = time.time()
+
         url = f"{self._host}{path}"
         resp = self._session.post(url, headers=self._headers(tr_cd), json=body, timeout=10)
         if not resp.ok:

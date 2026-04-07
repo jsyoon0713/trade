@@ -733,7 +733,7 @@ def create_app() -> Flask:
                     quotes.append(q)
                 except Exception as e:
                     logger.warning(f"[{sym}] 시세 조회 실패: {e}")
-                time.sleep(0.12)  # LS API 초당 10건 제한 대응
+                time.sleep(0.05)  # watchlist 루프 간 최소 대기
             return quotes
 
         return jsonify({
