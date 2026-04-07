@@ -92,8 +92,10 @@ class LSBroker:
         data = resp.json()
 
         # LS API 에러코드 감지 (HTTP 200으로 오는 에러)
+        # LS API는 TR마다 성공코드 길이가 다름: "00000000"(8자리), "00000"(5자리) 등
+        # → 모두 0으로만 이루어진 코드는 성공으로 처리
         rsp_cd = data.get("rsp_cd", "")
-        if rsp_cd and rsp_cd != "00000000":
+        if rsp_cd and not all(c == "0" for c in rsp_cd):
             rsp_msg = data.get("rsp_msg", "")
             logger.warning(f"[{tr_cd}] LS API 에러 [{rsp_cd}]: {rsp_msg}")
             raise RuntimeError(f"[{tr_cd}] {rsp_cd}: {rsp_msg}")
