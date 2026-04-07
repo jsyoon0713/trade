@@ -520,9 +520,9 @@ class BotManager:
 
     def get_recommendation(self) -> dict:
         """현재 단타 추천 정보 반환"""
-        if not self._day or not self._day._recommendation:
+        rec = getattr(self._day, "_recommendation", None) if self._day else None
+        if not rec:
             return {"available": False}
-        rec = self._day._recommendation
         return {"available": True, **rec.to_dict()}
 
     def _run_macro_update(self) -> None:
