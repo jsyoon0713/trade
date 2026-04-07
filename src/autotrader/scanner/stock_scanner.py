@@ -70,21 +70,17 @@ class StockScanner:
             if len(symbol) != 6 or not symbol.isdigit():
                 continue
 
-            # 같은 행(tr)에서 첫 번째 숫자 td = 현재가
-            row = link.find_parent("tr")
-            if not row:
+            # 종목명 td 바로 다음 td = 현재가
+            name_td = link.find_parent("td")
+            if not name_td:
                 continue
-            tds = row.find_all("td")
-            price = 0.0
-            for td in tds:
-                txt = td.text.strip().replace(",", "")
-                try:
-                    val = float(txt)
-                    if val > 0:
-                        price = val
-                        break
-                except (ValueError, TypeError):
-                    continue
+            price_td = name_td.find_next_sibling("td")
+            if not price_td:
+                continue
+            try:
+                price = float(price_td.text.strip().replace(",", ""))
+            except (ValueError, TypeError):
+                continue
 
             if price <= 0:
                 continue
