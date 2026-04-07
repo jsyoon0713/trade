@@ -28,20 +28,21 @@ class StockScanner:
             from pykrx import stock as krx
             today = datetime.now().strftime("%Y%m%d")
 
-            # KOSPI + KOSDAQ 합쳐서 거래량 상위 조회
-            df_kospi  = krx.get_market_trading_volume_by_ticker(today, market="KOSPI")
-            df_kosdaq = krx.get_market_trading_volume_by_ticker(today, market="KOSDAQ")
-
+            # KOSPI + KOSDAQ 합쳐서 거래량 상위 조회 (OHLCV에 거래량 포함)
             import pandas as pd
+            df_kospi  = krx.get_market_ohlcv_by_ticker(today, market="KOSPI")
+            df_kosdaq = krx.get_market_ohlcv_by_ticker(today, market="KOSDAQ")
             df = pd.concat([df_kospi, df_kosdaq])
 
-            # 거래량 기준 정렬
-            if "거래량" not in df.columns:
-                # 컬럼명이 영문인 경우 대응
-                vol_col = [c for c in df.columns if "volume" in c.lower() or "거래량" in c.lower()]
-                if not vol_col:
-                    raise ValueError(f"거래량 컬럼 없음: {list(df.columns)}")
-                df = df.rename(columns={vol_col[0]: "거래량"})
+            # 거래량 컬럼 찾기
+            vol_col = next(
+                (c for c in df.columns if "거래량" in c or "volume" in c.lower()),
+                None
+            )
+            if vol_col is None:
+                raise ValueError(f"거래량 컬럼 없음: {list(df.columns)}")
+            if vol_col != "거래량":
+                df = df.rename(columns={vol_col: "거래량"})
 
             df = df.sort_values("거래량", ascending=False)
 
