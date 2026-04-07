@@ -50,6 +50,9 @@ if errorlevel 1 (
 )
 echo       완료
 
+:: logs 폴더 생성
+if not exist "logs" mkdir logs
+
 :: .env 파일 확인
 echo.
 if not exist ".env" (
