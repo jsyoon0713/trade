@@ -629,6 +629,23 @@
 
     <!-- 단타 관심종목 HTS -->
     <div id="tab-watchlist-dt" style="display:none">
+      <!-- 수동 시작 툴바 -->
+      <div style="display:flex;gap:8px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted)">수동 시작:</span>
+        <input id="qs-target" type="number" value="1.5" step="0.5" min="0.5" max="10"
+          style="width:64px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:5px;font-size:12px"
+          title="일일 목표 수익률 (%)">
+        <span style="font-size:12px;color:var(--muted)">%</span>
+        <select id="qs-aggr"
+          style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:5px;font-size:12px">
+          <option value="적극">적극</option>
+          <option value="보통" selected>보통</option>
+          <option value="소극">소극</option>
+        </select>
+        <button class="btn btn-start btn-sm" onclick="quickStartDaytrading()" id="qs-btn"
+          style="padding:4px 12px;font-size:12px">단타 지금 시작</button>
+        <span id="qs-status" style="font-size:11px;color:var(--muted)"></span>
+      </div>
       <table class="hts-table">
         <thead>
           <tr>
@@ -884,6 +901,41 @@ function updateAllocPreview() {
   document.getElementById('alloc-sw-pct').textContent = swPct + '%';
   document.getElementById('alloc-dt-pct').textContent = dtPct + '%';
   document.getElementById('alloc-free').textContent = _cash > 0 ? fmtW(_cash - total) : '-';
+}
+
+async function quickStartDaytrading() {
+  const target = parseFloat(document.getElementById('qs-target').value) || 1.5;
+  const aggr   = document.getElementById('qs-aggr').value;
+  const btn    = document.getElementById('qs-btn');
+  const status = document.getElementById('qs-status');
+
+  btn.disabled = true;
+  status.textContent = '스캔 중...';
+  status.style.color = 'var(--yellow)';
+
+  try {
+    const res = await fetch('/api/daytrading/quick-start', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({daily_target_pct: target, aggressiveness: aggr}),
+    });
+    const d = await res.json();
+    if (d.ok !== false) {
+      const cnt = d.watchlist?.length ?? d.watchlist_count ?? '?';
+      status.textContent = `완료 — ${cnt}종목 등록`;
+      status.style.color = 'var(--green)';
+      showToast(`단타 시작: ${cnt}종목 (목표 ${target}%, ${aggr})`);
+      fetchWatchlist();
+    } else {
+      status.textContent = d.msg || '실패';
+      status.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    status.textContent = '오류: ' + e.message;
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function applyCapital() {

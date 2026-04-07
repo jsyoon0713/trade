@@ -864,6 +864,40 @@ def create_app() -> Flask:
             ],
         })
 
+    @app.route("/api/daytrading/quick-start", methods=["POST"])
+    @login_required
+    def api_daytrading_quick_start():
+        """장중 단타 수동 즉시 시작 (morning_prep 없이)"""
+        if not bot._day:
+            return jsonify({"ok": False, "msg": "단타 트레이더 미초기화 — 봇을 먼저 시작하세요"})
+        if not bot._running:
+            return jsonify({"ok": False, "msg": "봇이 실행 중이 아닙니다 — 봇을 먼저 시작하세요"})
+
+        data = request.get_json(force=True) or {}
+        try:
+            target_pct = float(data["daily_target_pct"]) if "daily_target_pct" in data else None
+        except (ValueError, TypeError):
+            return jsonify({"ok": False, "msg": "올바른 목표 수익률을 입력하세요"})
+
+        aggressiveness = data.get("aggressiveness") or None
+
+        # 백그라운드 스레드로 실행 (스캔이 약간 시간 걸림)
+        result_box = {}
+
+        def _run():
+            result_box.update(bot._day.quick_start(
+                daily_target_pct=target_pct,
+                aggressiveness=aggressiveness,
+            ))
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        t.join(timeout=30)
+
+        if not result_box:
+            return jsonify({"ok": False, "msg": "스캔 시간 초과"})
+        return jsonify(result_box)
+
     @app.route("/api/start", methods=["POST"])
     @login_required
     def api_start():

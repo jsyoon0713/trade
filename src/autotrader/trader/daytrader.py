@@ -193,9 +193,68 @@ class DayTrader:
             f"({pct_done:.0f}%{'✓' if self.target_achieved else ''})"
         )
 
+    # ── 장중 수동 즉시 시작 (웹 대시보드용) ───────────────────────────────────
+
+    def quick_start(
+        self,
+        daily_target_pct: float | None = None,
+        aggressiveness: str | None = None,
+    ) -> dict:
+        """
+        대화형 입력 없이 즉시 단타 시작.
+        웹 대시보드에서 장중 수동 시작 시 사용.
+        """
+        self._positions.clear()
+        self._cooldown.clear()
+        self._ohlcv_cache.clear()
+        self._daily_realized_pnl = 0.0
+        self._last_rescan_time   = None
+        self._trade_count        = 0
+
+        if daily_target_pct is not None and 0 < daily_target_pct <= 20:
+            self.daily_target_pct = daily_target_pct
+
+        if aggressiveness:
+            new_lv = self._resolve_aggressiveness(aggressiveness)
+            if new_lv != self.aggressiveness:
+                self.aggressiveness = new_lv
+                self._apply_aggressiveness()
+
+        logger.info(
+            f"[단타] 수동 시작 — 목표: {self.daily_target_pct}% "
+            f"({self.daily_target_amount:,.0f}원) | 적극도: {self.aggressiveness.value}"
+        )
+
+        # 거래량 상위 스캔
+        logger.info(f"[단타] 거래량 상위 {self.scan_top_n}개 스캔 중...")
+        try:
+            candidates = self.scanner.get_top_volume_stocks(self.scan_top_n)
+            self._watchlist        = candidates
+            self._last_rescan_time = datetime.now()
+            logger.info(f"[단타] 워치리스트 설정 완료: {self._watchlist}")
+        except Exception as e:
+            logger.error(f"[단타] 스캔 실패: {e}")
+            return {"ok": False, "msg": f"스캔 실패: {e}"}
+
+        self.notifier.notify_portfolio(
+            f"[단타] 수동 시작\n"
+            f"목표: {self.daily_target_pct}% ({self.daily_target_amount:,.0f}원)\n"
+            f"적극도: {self.aggressiveness.value} | 후보: {len(self._watchlist)}개"
+        )
+
+        return {
+            "ok": True,
+            "msg": f"단타 시작 완료 — 목표 {self.daily_target_pct}%, 적극도 {self.aggressiveness.value}",
+            "watchlist": self._watchlist,
+            "daily_target_pct": self.daily_target_pct,
+            "daily_target_amount": self.daily_target_amount,
+            "aggressiveness": self.aggressiveness.value,
+        }
+
     # ── 08:30 아침 준비 ────────────────────────────────────────────────────────
 
-    def morning_prep(self) -> None:
+    def morning_prep(self, **kwargs) -> None:
+        """08:30 대화형 준비 (macro_score 등 추가 인자는 무시)"""
         self._positions.clear()
         self._cooldown.clear()
         self._ohlcv_cache.clear()
