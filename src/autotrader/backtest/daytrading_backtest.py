@@ -220,11 +220,18 @@ class DayTradingBacktest:
         intra.index = pd.to_datetime(intra.index)
         daily.index = pd.to_datetime(daily.index)
 
-        # 한국 시간대 보정 (UTC → KST)
+        # 한국 시간대 보정 (UTC → KST +9h)
+        # yfinance는 tz-aware UTC로 반환하거나 tz-naive UTC로 반환할 수 있음
         if intra.index.tz is not None:
-            import pytz
             intra.index = intra.index.tz_convert("Asia/Seoul").tz_localize(None)
+        else:
+            # tz-naive인 경우 UTC로 간주하고 +9시간 보정
+            intra.index = intra.index + pd.Timedelta(hours=9)
 
+        if daily.index.tz is not None:
+            daily.index = daily.index.tz_convert("Asia/Seoul").tz_localize(None)
+
+        logger.debug(f"[백테스트] {symbol} 5분봉 샘플 시간: {intra.index[:3].tolist()}")
         return self._simulate(symbol, intra, daily)
 
     def _simulate(self, symbol: str, intra: pd.DataFrame, daily: pd.DataFrame) -> SymbolReport:
@@ -322,10 +329,11 @@ class DayTradingBacktest:
                 result = self._strategy.generate_signal(symbol, rows)
                 if result.signal == Signal.BUY:
                     qty = int(self.order_amount / current_price)
-                    if qty > 0:
-                        position_price = current_price * (1 + _BUY_COST_PCT)
-                        position_qty   = qty
-                        entry_time     = time_str
+                    if qty == 0:
+                        qty = 1  # 고가 주식(100만원+)도 1주로 진입
+                    position_price = current_price * (1 + _BUY_COST_PCT)
+                    position_qty   = qty
+                    entry_time     = time_str
 
             else:
                 # 청산 체크
