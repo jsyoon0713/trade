@@ -31,12 +31,12 @@ if errorlevel 1 (
 )
 
 for /f %%a in ('git rev-parse HEAD') do set LOCAL_HASH=%%a
-for /f %%a in ('git rev-parse origin/master 2^>nul || git rev-parse origin/main 2^>nul') do set REMOTE_HASH=%%a
+for /f %%a in ('git rev-parse origin/main') do set REMOTE_HASH=%%a
 
 if "%LOCAL_HASH%"=="%REMOTE_HASH%" (
     echo     이미 최신 버전입니다.
 ) else (
-    git pull origin master >nul 2>&1 || git pull origin main >nul 2>&1
+    git pull origin main >nul 2>&1
     echo     업데이트 완료!
 
     :: requirements 변경 여부 확인

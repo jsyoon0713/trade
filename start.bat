@@ -7,13 +7,15 @@ echo.
 echo [업데이트] GitHub 최신 코드 확인 중...
 git fetch origin >nul 2>&1
 if errorlevel 1 (
-    echo [업데이트] Git 조회 실패 (인터넷 연결 확인) - 현재 코드로 계속 진행합니다.
+    echo [업데이트] Git 조회 실패 - 현재 코드로 계속 진행합니다.
     goto SKIP_UPDATE
 )
 
-:: 변경사항 있는지 확인 (로컬 HEAD vs 원격 HEAD)
+:: 로컬 해시
 for /f %%a in ('git rev-parse HEAD') do set LOCAL_HASH=%%a
-for /f %%a in ('git rev-parse origin/master 2^>nul || git rev-parse origin/main 2^>nul') do set REMOTE_HASH=%%a
+
+:: 원격 해시 (main 브랜치)
+for /f %%a in ('git rev-parse origin/main') do set REMOTE_HASH=%%a
 
 if "%LOCAL_HASH%"=="%REMOTE_HASH%" (
     echo [업데이트] 이미 최신 버전입니다.
@@ -21,7 +23,7 @@ if "%LOCAL_HASH%"=="%REMOTE_HASH%" (
 )
 
 echo [업데이트] 새 업데이트 발견! 코드를 업데이트합니다...
-git pull origin master >nul 2>&1 || git pull origin main >nul 2>&1
+git pull origin main >nul 2>&1
 if errorlevel 1 (
     echo [업데이트] 업데이트 실패 - 현재 코드로 계속 진행합니다.
     goto SKIP_UPDATE
