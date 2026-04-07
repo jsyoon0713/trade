@@ -63,25 +63,31 @@ class StockScanner:
         soup = BeautifulSoup(resp.text, "html.parser")
         results: list[tuple[str, float]] = []
 
-        for row in soup.select("table.type_2 tr"):
-            link = row.select_one("td.name a")
-            price_td = row.select_one("td.number:nth-of-type(3)")
-            if not link or not price_td:
-                continue
-
+        # 종목 코드가 포함된 링크 전체를 찾음
+        for link in soup.select("a[href*='code=']"):
             href = link.get("href", "")
-            # href 예: /item/main.naver?code=005930
-            if "code=" not in href:
-                continue
-            symbol = href.split("code=")[-1].strip()
-            if len(symbol) != 6:
+            symbol = href.split("code=")[-1].strip()[:6]
+            if len(symbol) != 6 or not symbol.isdigit():
                 continue
 
-            try:
-                price = float(price_td.text.strip().replace(",", ""))
-            except (ValueError, TypeError):
+            # 같은 행(tr)에서 첫 번째 숫자 td = 현재가
+            row = link.find_parent("tr")
+            if not row:
                 continue
+            tds = row.find_all("td")
+            price = 0.0
+            for td in tds:
+                txt = td.text.strip().replace(",", "")
+                try:
+                    val = float(txt)
+                    if val > 0:
+                        price = val
+                        break
+                except (ValueError, TypeError):
+                    continue
 
+            if price <= 0:
+                continue
             results.append((symbol, price))
 
         return results
