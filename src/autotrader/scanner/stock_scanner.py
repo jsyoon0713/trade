@@ -37,7 +37,11 @@ class StockScanner:
                 },
             )
         except Exception as e:
-            logger.error(f"t1452 조회 실패: {e}")
+            try:
+                resp_text = e.response.text if hasattr(e, 'response') and e.response is not None else ""
+                logger.error(f"t1452 조회 실패: {e} | 응답: {resp_text}")
+            except Exception:
+                logger.error(f"t1452 조회 실패: {e}")
             return []
 
         rows = data.get("t1452OutBlock1", [])
