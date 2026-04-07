@@ -26,7 +26,7 @@ from ..broker.ls_broker import LSBroker
 from ..monitor.portfolio import PortfolioMonitor
 from ..notification.telegram_notifier import TelegramNotifier
 from ..scanner.stock_scanner import StockScanner
-from ..strategy.volume_momentum_strategy import VolumeMomentumStrategy
+from ..strategy.vwap_pullback_strategy import VWAPPullbackStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -44,48 +44,47 @@ class AggressivenessLevel(str, Enum):
 
 
 _AGGRESSIVENESS_CONFIG: dict[AggressivenessLevel, dict] = {
+    # VWAP 눌림 반등 전략 파라미터
+    # 손익비 1:2 → 필요 승률 40% (거래비용 포함 시 ≈ 45%)
     AggressivenessLevel.AGGRESSIVE: {
-        "volume_spike_ratio":   2.0,
-        "exit_volume_ratio":    1.2,
-        "momentum_candles":     2,
-        "momentum_threshold":   0.003,
-        "consecutive_down":     2,
-        "rsi_overbought":       78.0,
-        "max_entry_rise_pct":   0.07,   # 시초가 대비 7% 이상 진입 차단
-        "hard_stop_pct":        1.5,    # -1.5% 하드 스탑 (손익비 개선)
-        "take_profit_pct":      2.5,    # +2.5% 익절
-        "min_hold_minutes":     5,
+        # VWAP 전략 파라미터
+        "vwap_touch_pct":       0.008,   # VWAP ±0.8% 이내 눌림 인정 (넓게)
+        "max_above_vwap_pct":   0.030,   # VWAP 대비 3% 이내 진입 허용
+        "vol_confirm_ratio":    1.2,     # 반등 봉 거래량 1.2x 이상
+        "vwap_break_pct":       0.002,   # VWAP 아래 0.2% 이탈 시 청산
+        # 리스크 관리
+        "hard_stop_pct":        1.0,     # -1.0% 손절
+        "take_profit_pct":      2.5,     # +2.5% 익절  (손익비 1:2.5)
+        "min_hold_minutes":     3,
         "cooldown_minutes":     5,
         "capital_ratio":        0.50,
         "max_positions":        2,
         "rescan_interval_min":  3,
     },
     AggressivenessLevel.NORMAL: {
-        "volume_spike_ratio":   3.0,
-        "exit_volume_ratio":    1.5,
-        "momentum_candles":     3,
-        "momentum_threshold":   0.005,
-        "consecutive_down":     3,
-        "rsi_overbought":       75.0,
-        "max_entry_rise_pct":   0.07,   # 7%로 완화 (오늘 첫봉 기준으로 수정됨)
-        "hard_stop_pct":        1.5,    # -1.5% 하드 스탑 (기존 -2.5% → 손익비 개선)
-        "take_profit_pct":      2.0,    # +2.0% 익절 (손익비 1:1.33, 필요 승률 60%)
-        "min_hold_minutes":     5,      # 10분 → 5분 (빠른 손절 허용)
+        # VWAP 전략 파라미터
+        "vwap_touch_pct":       0.005,   # VWAP ±0.5% 이내 눌림
+        "max_above_vwap_pct":   0.025,   # VWAP 대비 2.5% 이내 진입
+        "vol_confirm_ratio":    1.3,     # 반등 봉 거래량 1.3x 이상
+        "vwap_break_pct":       0.003,   # VWAP 아래 0.3% 이탈 시 청산
+        # 리스크 관리
+        "hard_stop_pct":        1.0,     # -1.0% 손절 (손익비 1:2)
+        "take_profit_pct":      2.0,     # +2.0% 익절
+        "min_hold_minutes":     5,
         "cooldown_minutes":     10,
         "capital_ratio":        0.30,
         "max_positions":        3,
         "rescan_interval_min":  5,
     },
     AggressivenessLevel.CONSERVATIVE: {
-        "volume_spike_ratio":   5.0,
-        "exit_volume_ratio":    2.0,
-        "momentum_candles":     3,
-        "momentum_threshold":   0.010,
-        "consecutive_down":     4,
-        "rsi_overbought":       72.0,
-        "max_entry_rise_pct":   0.05,
-        "hard_stop_pct":        1.2,    # -1.2% 하드 스탑
-        "take_profit_pct":      1.8,    # +1.8% 익절
+        # VWAP 전략 파라미터
+        "vwap_touch_pct":       0.003,   # VWAP ±0.3% 이내만 눌림 인정 (엄격)
+        "max_above_vwap_pct":   0.015,   # VWAP 대비 1.5% 이내만 진입
+        "vol_confirm_ratio":    1.5,     # 반등 봉 거래량 1.5x 이상
+        "vwap_break_pct":       0.003,
+        # 리스크 관리
+        "hard_stop_pct":        0.8,     # -0.8% 손절 (손익비 1:2.25)
+        "take_profit_pct":      1.8,     # +1.8% 익절
         "min_hold_minutes":     10,
         "cooldown_minutes":     15,
         "capital_ratio":        0.20,
@@ -159,21 +158,18 @@ class DayTrader:
 
     def _apply_aggressiveness(self) -> None:
         self._cfg = _AGGRESSIVENESS_CONFIG[self.aggressiveness]
-        self._strategy = VolumeMomentumStrategy(
-            volume_spike_ratio  = self._cfg["volume_spike_ratio"],
-            exit_volume_ratio   = self._cfg["exit_volume_ratio"],
-            momentum_candles    = self._cfg["momentum_candles"],
-            momentum_threshold  = self._cfg["momentum_threshold"],
-            consecutive_down    = self._cfg["consecutive_down"],
-            rsi_overbought      = self._cfg["rsi_overbought"],
-            max_entry_rise_pct  = self._cfg["max_entry_rise_pct"],
+        self._strategy = VWAPPullbackStrategy(
+            vwap_touch_pct      = self._cfg["vwap_touch_pct"],
+            max_above_vwap_pct  = self._cfg["max_above_vwap_pct"],
+            vol_confirm_ratio   = self._cfg["vol_confirm_ratio"],
+            vwap_break_pct      = self._cfg["vwap_break_pct"],
         )
         logger.info(
             f"[단타] 적극도={self.aggressiveness.value} | "
-            f"거래량기준={self._cfg['volume_spike_ratio']}x | "
-            f"하드스탑=-{self._cfg['hard_stop_pct']}% | "
-            f"최소보유={self._cfg['min_hold_minutes']}분 | "
-            f"쿨다운={self._cfg['cooldown_minutes']}분"
+            f"VWAP눌림={self._cfg['vwap_touch_pct']*100:.1f}% | "
+            f"손절=-{self._cfg['hard_stop_pct']}% | "
+            f"익절=+{self._cfg['take_profit_pct']}% | "
+            f"최소보유={self._cfg['min_hold_minutes']}분"
         )
 
     # ── 목표 수익률 프로퍼티 ────────────────────────────────────────────────────
@@ -488,10 +484,10 @@ class DayTrader:
 
                 logger.info(
                     f"[단타][{symbol}] "
+                    f"VWAP={ind.get('vwap','?')} "
+                    f"이격={ind.get('above_vwap','?')}% "
                     f"vol={ind.get('vol_ratio','?')}x "
-                    f"momentum={ind.get('momentum_pct','?')}% "
-                    f"open_rise={ind.get('open_rise_pct','?')}% "
-                    f"→ {result.signal.value}"
+                    f"→ {result.signal.value} ({result.reason})"
                 )
 
                 if result.signal.value == "buy":
